@@ -17,7 +17,7 @@ struct Configuration
 end
 
 
-Configuration() = Configuration(3, 5.0, 0.5, 50.0, 0.005, 1.2, [0, 0.1], 12.0, deg2rad(30), 5.0, 9.81, 1.225)
+Configuration() = Configuration(3, 5.0, 0.5, 0.005, 50.0, 1.2, [0, 0.1], 12.0, deg2rad(30), 5.0, 9.81, 1.225)
 
 
 

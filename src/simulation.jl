@@ -2,7 +2,7 @@ using Rotations
 using StaticArrays
 using LinearAlgebra
 using DifferentialEquations
-
+using DataFrames
 
 function phi_p_controller(c::Configuration, shaft_tension::Number, force_horizontal::Number, psi_p::Number)
   force_vertical = c.n * (c.m + Tether.mass(c.d, c.l))
@@ -74,4 +74,40 @@ function solve_sector(c::Configuration, omega0::Number, psi::Number, shaft_tensi
   deriv = (du, u, p, psi_p) -> du[1] = derivative_of_omega_by_psi_p(c, u[1], psi_p, psi, shaft_tension, shaft_moment, force_horizontal, (_, _, _) -> (), ())[1]
   prob = ODEProblem(deriv, u0, (0, psi_p_end), solver_input) # integrating psi, not time
   solve(prob, Euler(), dt = step_size)
+end
+
+
+function solve_sector_df(c::Configuration, omega0::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number, solution::ODESolution = solve_sector(c, omega0, psi, shaft_tension, shaft_moment, force_horizontal))
+  psi_ps = solution.t
+  omegas = [u[1] for u=solution.u]
+  saved = [derivative_of_omega_by_psi_p(c, omega, psi_p, psi, shaft_tension, shaft_moment, force_horizontal, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}())[2] for (psi_p, omega) in zip(psi_ps, omegas)]
+  sector_times = diff(psi_ps) ./ omegas[1:(end - 1)]
+  t = foldl((acc, _) -> vcat(acc, sector_times .+ maximum(acc)), 1:c.n, init = [0])
+
+  # we want to expand the sector for all 360 degrees
+  psi_p_360 = vcat([psi_ps[1:(end - 1)] .+ (i * 2 * pi / c.n) for i=0:(c.n - 1)]...)
+  saved_value = k -> (tmp = [s[k] for s = saved[1:(end - 1)]]; vcat([tmp for _ = 1:c.n]...))
+  saved_value_per_kite = k -> (tmp = [s[k] for s = saved[1:(end - 1)]]; vcat([[row[i] for row=tmp] for i = 1:c.n]...))
+  df = DataFrame(:psi_p => psi_p_360
+                 , :omega => vcat([omegas[1:(end -1)] for _=1:c.n]...)
+                 , :t => t[1:(end -1)]
+                 , :mass_sum => saved_value(:mass_sum)
+                 , :phi_p => saved_value_per_kite(:phi_p_list)
+                 , :c_vec => saved_value(:c_vec)
+                 , :v_k_vec => saved_value_per_kite(:v_k_vec_list)
+                 , :v_a_vec => saved_value_per_kite(:v_a_vec_list)
+                 , :v_a => saved_value_per_kite(:v_a_list)
+                 , :r_vec => saved_value_per_kite(:r_vec_list)
+                 , :l_n_vec => saved_value_per_kite(:l_n_vec_list)
+                 , :lift => saved_value_per_kite(:lift_list)
+                 , :c_l => saved_value_per_kite(:c_l_list)
+                 , :c_d => saved_value_per_kite(:c_d_list)
+                 , :lift_vec => saved_value_per_kite(:lift_vec_list)
+                 , :drag_vec => saved_value_per_kite(:drag_vec_list)
+                 , :moment => saved_value_per_kite(:moment_list)
+                 , :sum_moments => saved_value(:sum_moments)
+                 , :moment_of_inertia => saved_value(:moment_of_inertia)
+                 , :deriv_omega_by_psi_p => saved_value(:deriv_omega_by_psi_p)
+                )
+  (df, solution.prob.p)
 end
