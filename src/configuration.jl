@@ -9,7 +9,6 @@ struct Configuration
   l :: Float64            # Nominal shaft length
   design_c_l :: Float64   # nominal max C_L to use
   c_d_fun_coeffs :: Array{Float64, 1}
-  w :: Float64            # wind speed, always coming from "north"
   elev :: Float64         # elevation angle, in radians, theta
   radius :: Float64       # looping radius
   gravity :: Float64      # always the same
@@ -17,7 +16,7 @@ struct Configuration
 end
 
 
-Configuration() = Configuration(3, 5.0, 0.5, 0.005, 50.0, 1.2, [0, 0.1], 12.0, deg2rad(30), 5.0, 9.81, 1.225)
+Configuration() = Configuration(3, 5.0, 0.5, 0.005, 50.0, 1.2, [0, 0.1], deg2rad(30), 5.0, 9.81, 1.225)
 
 
 

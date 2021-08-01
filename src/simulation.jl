@@ -10,7 +10,7 @@ function phi_p_controller(c::Configuration, shaft_tension::Number, force_horizon
 end
 
 
-function derivative_of_omega_by_psi_p(c::Configuration, omega::Number, psi_p::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number, saver_fun::Function, acc)
+function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Number, psi_p::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number, saver_fun::Function, acc)
   psi_p_list = psi_p .+ range(0, 2 * pi, length = c.n + 1)[1:(end - 1)];
   acc = saver_fun(:psi_p_list, psi_p_list, acc)
 
@@ -19,8 +19,6 @@ function derivative_of_omega_by_psi_p(c::Configuration, omega::Number, psi_p::Nu
   acc = saver_fun(:mass_sum, mass_sum, acc)
 
   phi_p_list = [phi_p_controller(c, shaft_tension, force_horizontal, p) for p=psi_p_list]
-  # TODO temporary
-  # phi_p_list = [0.0 for p=psi_p_list]
   acc = saver_fun(:phi_p_list, phi_p_list, acc)
 
   rot_psi_elev = RotZ(psi) * RotY(c.elev)
@@ -30,7 +28,7 @@ function derivative_of_omega_by_psi_p(c::Configuration, omega::Number, psi_p::Nu
   acc = saver_fun(:c_vec, c_vec, acc)
   v_k_vec_list = [rot * SVector(0.0, 0.0, omega * c.radius) for rot=rot_psi_elev_psi_p_list]
   acc = saver_fun(:v_k_vec_list, v_k_vec_list, acc)
-  v_a_vec_list = [v .- SVector(c.w, 0, 0) for v=v_k_vec_list]
+  v_a_vec_list = [v .- SVector(wind, 0, 0) for v=v_k_vec_list]
   acc = saver_fun(:v_a_vec_list, v_a_vec_list, acc)
   v_a_list = norm.(v_a_vec_list)
   acc = saver_fun(:v_a_list, v_a_list, acc)
@@ -47,50 +45,65 @@ function derivative_of_omega_by_psi_p(c::Configuration, omega::Number, psi_p::Nu
   c_d_list = [calc_c_d(c, c_l) for c_l = c_l_list]
   acc = saver_fun(:c_d_list, c_d_list, acc)
 
-  lift_vec_list = [0.5 * c.rho * v_a2 .* c_l .* c.s .* l_n_vec for (v_a2, l_n_vec, c_l) = zip(v_a2_list, l_n_vec_list, c_l_list)]
+  lift_vec_list = [0.5 * c.rho * v_a2 * c_l * c.s * l_n_vec for (v_a2, l_n_vec, c_l) = zip(v_a2_list, l_n_vec_list, c_l_list)]
   acc = saver_fun(:lift_vec_list, lift_vec_list, acc)
-  drag_vec_list = [-0.5 * c.rho * v_a .* c_d .* c.s .* v_a_vec for (v_a, v_a_vec, c_d) = zip(v_a_list, v_a_vec_list, c_d_list)]
+  drag_vec_list = [-0.5 * c.rho * v_a * c_d * c.s * v_a_vec for (v_a, v_a_vec, c_d) = zip(v_a_list, v_a_vec_list, c_d_list)]
   acc = saver_fun(:drag_vec_list, drag_vec_list, acc)
 
   moment_list = [c.radius * dot((l_vec + d_vec + c.m * gravity), normalize(v_k_vec)) for (l_vec, d_vec, v_k_vec) = zip(lift_vec_list, drag_vec_list, v_k_vec_list)]
   acc = saver_fun(:moment_list, moment_list, acc)
-  sum_moments = sum(moment_list) - shaft_moment
+  sum_moments = sum(moment_list)
   acc = saver_fun(:sum_moments, sum_moments, acc)
   moment_of_inertia = c.n * c.m * c.radius^2 # tether inertia not accounted for
   acc = saver_fun(:moment_of_inertia, moment_of_inertia, acc)
-  deriv_omega_by_psi_p = 1 / moment_of_inertia / omega * sum_moments
+  deriv_omega_by_psi_p = 1 / moment_of_inertia / omega * (sum_moments - shaft_moment)
   acc = saver_fun(:deriv_omega_by_psi_p, deriv_omega_by_psi_p, acc)
   (deriv_omega_by_psi_p, acc)
 end
 
 
-function solve_sector(c::Configuration, omega0::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number; step_size = deg2rad(1.0))
+function solve_sector(c::Configuration, wind::Number, speed0::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001)
   solver_input = Dict(:config => c
-                      , :omega0 => omega0
+                      , :speed0 => speed0
+                      , :wind => wind
                       , :psi => psi
                       , :shaft_tension => shaft_tension
                       , :shaft_moment => shaft_moment
                       , :force_horizontal => force_horizontal
                      )
   psi_p_end = 2 * pi / c.n
-  u0 = [omega0]
+
   deriv = function(du, u, p, psi_p)
     omega = u[1]
     if omega * c.radius < 1.0
       du[1] = 0.0
     else
-      du[1] = derivative_of_omega_by_psi_p(c, omega, psi_p, psi, shaft_tension, shaft_moment, force_horizontal, (_, _, _) -> (), ())[1]
+      du[1] = derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, shaft_moment, force_horizontal, (_, _, _) -> (), ())[1]
     end
   end
-  prob = ODEProblem(deriv, u0, (0, psi_p_end), solver_input) # integrating psi, not time
-  solve(prob, Euler(), dt = step_size)
+  
+  solver = function(acc, _)
+    if (acc[3]) # done flag
+      acc
+    else
+      omega0 = acc[1]
+      u0 = [omega0]
+      prob = ODEProblem(deriv, u0, (0, psi_p_end), solver_input) # integrating psi, not time
+      sol = solve(prob, Euler(), dt = step_size)
+      next_omega0 = sol.u[end][1]
+      (next_omega0, sol, abs(omega0 / next_omega0 - 1) < finish_threshold)
+    end
+  end
+
+  (_, result) = foldl(solver, 1:max(1, iterations), init = (speed0 / c.radius, (), false))
+  result
 end
 
 
-function solve_sector_df(c::Configuration, omega0::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number, solution::ODESolution = solve_sector(c, omega0, psi, shaft_tension, shaft_moment, force_horizontal))
+function solve_sector_df(c::Configuration, wind::Number, speed0::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, solution::ODESolution = solve_sector(c, wind, speed0, psi, shaft_tension, shaft_moment, force_horizontal, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold))
   psi_ps = solution.t
   omegas = [u[1] for u=solution.u]
-  saved = [derivative_of_omega_by_psi_p(c, omega, psi_p, psi, shaft_tension, shaft_moment, force_horizontal, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}())[2] for (psi_p, omega) in zip(psi_ps, omegas)]
+  saved = [derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, shaft_moment, force_horizontal, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}())[2] for (psi_p, omega) in zip(psi_ps, omegas)]
   sector_times = diff(psi_ps) ./ omegas[1:(end - 1)]
   t = foldl((acc, _) -> vcat(acc, sector_times .+ maximum(acc)), 1:c.n, init = [0])
 
@@ -101,13 +114,19 @@ function solve_sector_df(c::Configuration, omega0::Number, psi::Number, shaft_te
   saved_value_per_kite = k -> (tmp = [s[k] for s = saved[1:(end - 1)]]; vcat([[row[i] for row=tmp] for i = 1:c.n]...))
 
   omega = vcat([omegas[1:(end -1)] for _=1:c.n]...)
+  mass_sum = saved_value(:mass_sum)
+  lift_vec = saved_value_per_kite(:lift_vec_list)
+  drag_vec = saved_value_per_kite(:drag_vec_list)
+  lift_drag_vec = lift_vec .+ drag_vec
+  force_h = [dot(ld, RotZ(psi) * SVector(0.0, 1.0, 0.0)) for ld = lift_drag_vec]
+  force_v = [dot(ld, SVector(0.0, 0.0, 1.0)) for ld = lift_drag_vec] .- (c.gravity * mass_sum*0)
 
   df = DataFrame(:psi_p => psi_p_360
                  , :omega => omega
                  , :power => omega .* shaft_moment
                  , :v_k => c.radius .* omega
                  , :t => t[1:(end -1)]
-                 , :mass_sum => saved_value(:mass_sum)
+                 , :mass_sum => mass_sum
                  , :phi_p => saved_value_per_kite(:phi_p_list)
                  , :c_vec => saved_value(:c_vec)
                  , :v_k_vec => saved_value_per_kite(:v_k_vec_list)
@@ -118,13 +137,15 @@ function solve_sector_df(c::Configuration, omega0::Number, psi::Number, shaft_te
                  , :lift => saved_value_per_kite(:lift_list)
                  , :c_l => saved_value_per_kite(:c_l_list)
                  , :c_d => saved_value_per_kite(:c_d_list)
-                 , :lift_vec => saved_value_per_kite(:lift_vec_list)
-                 , :drag_vec => saved_value_per_kite(:drag_vec_list)
+                 , :lift_vec => lift_vec
+                 , :drag_vec => drag_vec
                  , :moment => saved_value_per_kite(:moment_list)
                  , :sum_moments => saved_value(:sum_moments)
                  , :moment_of_inertia => saved_value(:moment_of_inertia)
                  , :deriv_omega_by_psi_p => saved_value(:deriv_omega_by_psi_p)
                  , :position => position
+                 , :force_h => force_h
+                 , :force_v => force_v
                 )
   (df, solution.prob.p)
 end
