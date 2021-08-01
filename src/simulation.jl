@@ -33,14 +33,14 @@ function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Num
   v_a_list = norm.(v_a_vec_list)
   acc = saver_fun(:v_a_list, v_a_list, acc)
   v_a2_list = v_a_list.^2
-  r_vec_list = [rot * RotY(p) * SVector(0.0, 1.0, 0.0) for (rot, p)=zip(rot_psi_elev_psi_p_list, phi_p_list)]
+  r_vec_list = [rot * RotZ(p) * SVector(0.0, 1.0, 0.0) for (rot, p)=zip(rot_psi_elev_psi_p_list, phi_p_list)]
   acc = saver_fun(:r_vec_list, r_vec_list, acc)
   l_n_vec_list = [normalize(cross(r, v)) for (r,v)=zip(r_vec_list, v_a_vec_list)]
   acc = saver_fun(:l_n_vec_list, l_n_vec_list, acc)
   #TODO also use drag force along shaft tension direction
-  lift_list = [(shaft_tension - mass_sum * dot(gravity, c_vec)) / dot(c_vec, l_n) for l_n = l_n_vec_list]
-  acc = saver_fun(:lift_list, lift_list, acc)
-  c_l_list = clamp.([2 * l / (c.s * c.rho * v) for (l, v) = zip(lift_list, v_a2_list)], 0.0, c.design_c_l)
+  desired_lift_list = [(shaft_tension - mass_sum * dot(gravity, c_vec)) / dot(c_vec, l_n) for l_n = l_n_vec_list]
+  acc = saver_fun(:desired_lift_list, desired_lift_list, acc)
+  c_l_list = clamp.([2 * l / (c.s * c.rho * v) for (l, v) = zip(desired_lift_list, v_a2_list)], 0.0, c.design_c_l)
   acc = saver_fun(:c_l_list, c_l_list, acc)
   c_d_list = [calc_c_d(c, c_l) for c_l = c_l_list]
   acc = saver_fun(:c_d_list, c_d_list, acc)
@@ -118,8 +118,10 @@ function solve_sector_df(c::Configuration, wind::Number, speed0::Number, psi::Nu
   lift_vec = saved_value_per_kite(:lift_vec_list)
   drag_vec = saved_value_per_kite(:drag_vec_list)
   lift_drag_vec = lift_vec .+ drag_vec
+  c_vec = saved_value(:c_vec)
+  shaft_tension = [dot(ld + SVector(0.0, 0.0, c.gravity * mass_sum[1]), cv) for (ld, cv) = zip(lift_drag_vec, c_vec)]
   force_h = [dot(ld, RotZ(psi) * SVector(0.0, 1.0, 0.0)) for ld = lift_drag_vec]
-  force_v = [dot(ld, SVector(0.0, 0.0, 1.0)) for ld = lift_drag_vec] .- (c.gravity * mass_sum*0)
+  force_v = [dot(ld, SVector(0.0, 0.0, 1.0)) + st * sin(c.elev) + c.gravity * mass_sum[1] for (ld, st) = zip(lift_drag_vec, shaft_tension)]
 
   df = DataFrame(:psi_p => psi_p_360
                  , :omega => omega
@@ -128,13 +130,13 @@ function solve_sector_df(c::Configuration, wind::Number, speed0::Number, psi::Nu
                  , :t => t[1:(end -1)]
                  , :mass_sum => mass_sum
                  , :phi_p => saved_value_per_kite(:phi_p_list)
-                 , :c_vec => saved_value(:c_vec)
+                 , :c_vec => c_vec
                  , :v_k_vec => saved_value_per_kite(:v_k_vec_list)
                  , :v_a_vec => saved_value_per_kite(:v_a_vec_list)
                  , :v_a => saved_value_per_kite(:v_a_list)
                  , :r_vec => saved_value_per_kite(:r_vec_list)
                  , :l_n_vec => saved_value_per_kite(:l_n_vec_list)
-                 , :lift => saved_value_per_kite(:lift_list)
+                 , :desired_lift => saved_value_per_kite(:desired_lift_list)
                  , :c_l => saved_value_per_kite(:c_l_list)
                  , :c_d => saved_value_per_kite(:c_d_list)
                  , :lift_vec => lift_vec
@@ -146,6 +148,7 @@ function solve_sector_df(c::Configuration, wind::Number, speed0::Number, psi::Nu
                  , :position => position
                  , :force_h => force_h
                  , :force_v => force_v
+                 , :shaft_tension => shaft_tension
                 )
   (df, solution.prob.p)
 end
