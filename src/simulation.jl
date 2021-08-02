@@ -3,6 +3,7 @@ using StaticArrays
 using LinearAlgebra
 using DifferentialEquations
 using DataFrames
+using Optim
 
 function phi_p_controller(c::Configuration, shaft_tension::Number, force_horizontal::Number, psi_p::Number)
   force_vertical = c.n * (c.m + Tether.mass(c.d, c.l)) * c.gravity
@@ -62,7 +63,7 @@ function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Num
 end
 
 
-function solve_sector(c::Configuration, wind::Number, speed0::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001)
+function solve_sector(c::Configuration, wind::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = 100.0)
   solver_input = Dict(:config => c
                       , :speed0 => speed0
                       , :wind => wind
@@ -100,7 +101,7 @@ function solve_sector(c::Configuration, wind::Number, speed0::Number, psi::Numbe
 end
 
 
-function solve_sector_df(c::Configuration, wind::Number, speed0::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, solution::ODESolution = solve_sector(c, wind, speed0, psi, shaft_tension, shaft_moment, force_horizontal, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold))
+function solve_sector_df(c::Configuration, wind::Number, psi::Number, shaft_tension::Number, shaft_moment::Number, force_horizontal::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = 100.0, solution::ODESolution = solve_sector(c, wind, psi, shaft_tension, shaft_moment, force_horizontal, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold, speed0 = speed0))
   psi_ps = solution.t
   omegas = [u[1] for u=solution.u]
   saved = [derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, shaft_moment, force_horizontal, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}())[2] for (psi_p, omega) in zip(psi_ps, omegas)]
@@ -152,3 +153,25 @@ function solve_sector_df(c::Configuration, wind::Number, speed0::Number, psi::Nu
                 )
   (df, solution.prob.p)
 end
+
+
+function optimal_tension_moment(c::Configuration, wind::Number, psi::Number, force_horizontal::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0 = 100.0)
+  small_tension = wind^2 * cos(psi)^2 * cos(c.elev)^2 * c.s;
+  small_moment = small_tension / 4.0;
+  
+  minimizer = function(x::Vector)
+    tension = x[1]
+    moment = x[2]
+    act_moment = clamp(moment, 0, 10 * tension) # dont want to go wild with moment, 1.5x is normally correct
+    (df, _) = solve_sector_df(c, wind, psi, tension, moment, force_horizontal; step_size = step_size, iterations = iterations, speed0 = speed0)
+    -sum(clamp.(df.power, 0, Inf)) + clamp(tension, -Inf, 0)^2 + (clamp(moment - 10 * tension, 0, Inf))^2
+  end
+  opt = optimize(minimizer, [small_tension, small_moment])
+  if opt.ls_success
+    (t, m) = (opt.minimizer[1], opt.minimizer[2])
+    (clamp(t, 0, Inf), m)
+  else
+    (NaN, NaN)
+  end
+end
+

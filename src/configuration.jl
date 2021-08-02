@@ -13,10 +13,11 @@ struct Configuration
   radius :: Float64       # looping radius
   gravity :: Float64      # always the same
   rho :: Float64          # air density
+  c_d_tether::Float64     # drag coefficient of tether
 end
 
 
-Configuration() = Configuration(3, 5.0, 0.5, 0.005, 50.0, 1.2, [0, 0.1], deg2rad(30), 5.0, 9.81, 1.225)
+Configuration() = Configuration(3, 5.0, 0.5, 0.005, 50.0, 1.2, [0, 0.1], deg2rad(30), 5.0, 9.81, 1.225, 1.1)
 
 
 
@@ -39,8 +40,14 @@ function scale_to_area(c::Configuration, s::Number)
   scale(c, sqrt(s / c.s))
 end
 
-function calc_c_d(c::Configuration, c_l::Number)
-  sum(map(i -> c.c_d_fun_coeffs[i] * c_l^(i-1), 1:length(c.c_d_fun_coeffs)))
+function calc_c_d(c::Configuration, c_l::Number; coeffs = c_d_coeffs_with_tether(c))
+  sum(map(i -> coeffs[i] * c_l^(i-1), 1:length(coeffs)))
+end
+
+function c_d_coeffs_with_tether(c::Configuration)
+  tmp = zeros(size(c.c_d_fun_coeffs))
+  tmp[1] = c.c_d_tether * c.d * c.l / 3.0 / c.s
+  tmp + c.c_d_fun_coeffs
 end
 
 
