@@ -27,7 +27,7 @@ end
 
 
 function scale(c::Configuration, scale::Number)
-  config(m = c.m * scale^MASS_SCALING_EXPONENT
+  config(c, m = c.m * scale^MASS_SCALING_EXPONENT
          , s = c.s * scale^2
          , d = c.d * scale
          , l = c.l * scale
