@@ -5,13 +5,13 @@ using DifferentialEquations
 using DataFrames
 using Optim
 
-function phi_p_controller(c::Configuration, shaft_tension::Number, force_horizontal::Number, psi_p::Number)
+function phi_p_controller(c::Configuration, shaft_tension::Number, force_h::Number, psi_p::Number)
   force_vertical = c.n * (c.m + Tether.mass(c.d, c.l)) * c.gravity
-  atan(2 / (c.n * shaft_tension) * (force_vertical * sin(psi_p) + force_horizontal * cos(psi_p)))
+  atan(2 / (c.n * shaft_tension) * (force_vertical * sin(psi_p) + force_h * cos(psi_p)))
 end
 
 
-function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Number, psi_p::Number, psi::Number, shaft_tension::Number, m_t_factor::Number, force_horizontal::Number, saver_fun::Function, acc)
+function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Number, psi_p::Number, psi::Number, shaft_tension::Number, m_t_factor::Number, force_h::Number, saver_fun::Function, acc)
   psi_p_list = psi_p .+ range(0, 2 * pi, length = c.n + 1)[1:(end - 1)];
   acc = saver_fun(:psi_p_list, psi_p_list, acc)
 
@@ -19,7 +19,7 @@ function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Num
   mass_sum = c.m + Tether.mass(c.d, c.l);
   acc = saver_fun(:mass_sum, mass_sum, acc)
 
-  phi_p_list = [phi_p_controller(c, shaft_tension, force_horizontal, p) for p=psi_p_list]
+  phi_p_list = [phi_p_controller(c, shaft_tension, force_h, p) for p=psi_p_list]
   acc = saver_fun(:phi_p_list, phi_p_list, acc)
 
   rot_psi_elev = RotZ(psi) * RotY(c.elev)
@@ -63,14 +63,14 @@ function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Num
 end
 
 
-function solve_sector(c::Configuration, wind::Number, psi::Number, shaft_tension::Number, m_t_factor::Number, force_horizontal::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = 100.0)
+function solve_sector(c::Configuration, wind::Number, psi::Number, shaft_tension::Number, m_t_factor::Number, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = 100.0)
   solver_input = Dict(:config => c
                       , :speed0 => speed0
                       , :wind => wind
                       , :psi => psi
                       , :shaft_tension => shaft_tension
                       , :m_t_factor => m_t_factor
-                      , :force_horizontal => force_horizontal
+                      , :force_h => force_h
                      )
   psi_p_end = 2 * pi / c.n
 
@@ -79,7 +79,7 @@ function solve_sector(c::Configuration, wind::Number, psi::Number, shaft_tension
     if omega * c.radius < 1.0
       du[1] = 0.0
     else
-      du[1] = derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, m_t_factor, force_horizontal, (_, _, _) -> (), ())[1]
+      du[1] = derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, m_t_factor, force_h, (_, _, _) -> (), ())[1]
     end
   end
   
@@ -101,10 +101,10 @@ function solve_sector(c::Configuration, wind::Number, psi::Number, shaft_tension
 end
 
 
-function solve_sector_df(c::Configuration, wind::Number, psi::Number, shaft_tension::Number, m_t_factor::Number, force_horizontal::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = 100.0, solution::ODESolution = solve_sector(c, wind, psi, shaft_tension, m_t_factor, force_horizontal, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold, speed0 = speed0))
+function solve_sector_df(c::Configuration, wind::Number, psi::Number, shaft_tension::Number, m_t_factor::Number, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = 100.0, solution::ODESolution = solve_sector(c, wind, psi, shaft_tension, m_t_factor, force_h, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold, speed0 = speed0))
   psi_ps = solution.t
   omegas = [u[1] for u=solution.u]
-  saved = [derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, m_t_factor, force_horizontal, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}())[2] for (psi_p, omega) in zip(psi_ps, omegas)]
+  saved = [derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, m_t_factor, force_h, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}())[2] for (psi_p, omega) in zip(psi_ps, omegas)]
   sector_times = diff(psi_ps) ./ omegas[1:(end - 1)]
   t = foldl((acc, _) -> vcat(acc, sector_times .+ maximum(acc)), 1:c.n, init = [0])
 
