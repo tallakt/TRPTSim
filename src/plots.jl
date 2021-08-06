@@ -26,3 +26,23 @@ function plot_power_curves(args...)
 
   result
 end
+
+
+function heatmap_tension_moment_power(c::Configuration, wind::Number, psi::Number, shaft_tensions, m_t_factors, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = 100.0)
+
+  function fun(t, m_t)
+    (df,_)=TRPTSim.solve_sector_df(c, wind, psi, t, m_t, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0) 
+    if maximum(df.c_l) > c.design_c_l
+      NaN
+    else
+      mean(df.power)
+    end
+  end
+
+  display(MIME"image/png"()
+          , heatmap(m_t_factors
+                    , shaft_tensions
+                    , [fun(t, m_t) for t = shaft_tensions, m_t=m_t_factors]
+                   )
+         )
+end
