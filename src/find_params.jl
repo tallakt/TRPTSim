@@ -1,4 +1,4 @@
-function optimal_tension_mtf(c::Configuration, wind::Number, psi::Number, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0 = 100.0)
+function optimal_tension_mtf(c::Configuration, wind::Number, psi::Number, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0 = heuristic_flying_speed(c, wind, psi))
   small_tension = wind^2 * cos(psi)^2 * cos(c.elev)^2 * c.s;
   small_moment = small_tension / 4.0;
   
@@ -24,7 +24,7 @@ function optimal_tension_mtf(c::Configuration, wind::Number, psi::Number, force_
 end
 
 
-function optimal_tension(c::Configuration, wind::Number, psi::Number, m_t_factor::Number, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0 = 100.0)
+function optimal_tension(c::Configuration, wind::Number, psi::Number, m_t_factor::Number, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0 = heuristic_flying_speed(c, wind, psi))
   small_tension = wind^2 * cos(psi)^2 * cos(c.elev)^2 * c.s;
   
   minimizer = function(x::Vector)
