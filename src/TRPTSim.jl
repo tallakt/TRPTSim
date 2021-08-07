@@ -1,11 +1,12 @@
 module TRPTSim
 
 export config, config_to_dict, scale, scale_to_area, calc_c_d,
-c_d_coeffs_with_tether, wind_vec, rotary_inertia, solve_sector,
-solve_sector_df, optimal_tension_mtf, optimal_tension, shaft_section_c_d,
-shaft_section_m_t_factor, shaft_section_compression, power_curve,
-plot_power_curves, heatmap_tension_moment_power, heuristic_flying_speed,
-heuristic_shaft_tension
+c_d_coeffs_with_tether, tether_mass, tether_strength, wind_vec, rotary_inertia,
+solve_sector, solve_sector_df, optimal_tension_mtf, optimal_tension,
+shaft_section_c_d, shaft_section_m_t_factor, shaft_section_compression,
+power_curve, plot_power_curves, plot_tension_curves,
+heatmap_tension_moment_power, plot_solution, heuristic_flying_speed,
+heuristic_shaft_tension_per_kite, grid_optimize_1d, get_avg_power
 
 include("configuration.jl")
 include("tether.jl")
@@ -15,4 +16,6 @@ include("shaft.jl")
 include("power_curve.jl")
 include("plots.jl")
 include("heuristics.jl")
+include("grid_optimize.jl")
+include("utilities.jl")
 end

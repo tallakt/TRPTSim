@@ -4,8 +4,9 @@ function heuristic_flying_speed(c::Configuration, wind::Number, psi::Number)
 end
 
 
-function heuristic_shaft_tension(c::Configuration, wind::Number, psi::Number)
+function heuristic_shaft_tension_per_kite(c::Configuration, wind::Number, psi::Number)
+  # tension per kite
   speed = heuristic_flying_speed(c, wind, psi)
-  0.5 * c.rho * c.design_c_l * 0.85 * c.s * (speed^2 + wind^2) * c.n
+  0.5 * c.rho * c.design_c_l * 0.85 * c.s * (speed^2 + wind^2)
 end
 

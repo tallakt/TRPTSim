@@ -14,10 +14,11 @@ struct Configuration
   gravity :: Float64      # always the same
   rho :: Float64          # air density
   c_d_tether::Float64     # drag coefficient of tether
+  safety_factor::Float64  # for the tether
 end
 
 
-Configuration() = Configuration(3, 5.0, 0.5, 0.005, 50.0, 1.2, [0, 0.1], deg2rad(30), 5.0, 9.81, 1.225, 1.1)
+Configuration() = Configuration(3, 5.0, 0.5, 0.005, 50.0, 1.2, [0, 0.1], deg2rad(30), 5.0, 9.81, 1.225, 1.1, 3.0)
 
 
 
