@@ -6,7 +6,7 @@ solve_sector, solve_sector_df, optimal_tension_mtf, optimal_tension,
 shaft_section_c_d, shaft_section_m_t_factor, shaft_section_compression,
 power_curve, plot_power_curves, plot_tension_curves,
 heatmap_tension_moment_power, plot_solution, heuristic_flying_speed,
-heuristic_shaft_tension_per_kite, grid_optimize_1d, get_avg_power
+heuristic_shaft_tension_per_kite, grid_optimize_1d, get_avg_power, october_kite
 
 include("configuration.jl")
 include("tether.jl")
@@ -18,4 +18,5 @@ include("plots.jl")
 include("heuristics.jl")
 include("grid_optimize.jl")
 include("utilities.jl")
+include("kites/october.jl")
 end
