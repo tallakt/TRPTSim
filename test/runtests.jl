@@ -87,3 +87,63 @@ end
   @test calc_c_d(c, c.design_c_l) ≈ expected_c_d                      atol = 0.02
   @test mean(df.v_a) ≈ norm([1, c.design_c_l / expected_c_d]) * w     atol = 2.0
 end
+
+
+
+@testset "Test elevation and phi" begin
+  w = 12.0
+  m_t_factor = 1.0
+  force_h = 0.0
+  c = config(eijkelhof_kite(), gravity = 0.0)
+  elev_psi = [(0.0, 0.0), (30.0, 0.0), (60.0, 0.0), (0.0, 30.0), (0.0, 60.0), (30.0, 30.0)]
+  powers = [solve_sector_df(config(c, elev = deg2rad(elv)), w, deg2rad(psi), m_t_factor, force_h) |> get_avg_power for (elv, psi) = elev_psi]
+
+  @test powers[2] ≈ 1_400_000.0 rtol = 0.05 # not sure about the power values, at least they should be reducing with angle
+  @test powers[3] ≈ 430_000.0   rtol = 0.10
+  @test powers[4] ≈ powers[2]   rtol = 0.01
+  @test powers[5] ≈ powers[3]   rtol = 0.01
+  @test powers[6] ≈ 1_200_000   rtol = 0.05
+end
+
+
+@testset "Test scaling and effect of mass" begin
+  w = 9.0
+  m_t_factor = 1.0
+  force_h = 0.0
+  psi = 0.0
+  c1 = eijkelhof_kite()
+  c2 = config(scale_to_area(c1, c1.s / 2), m = c1.m / 2)
+  c3 = scale_to_area(c1, c1.s / 2)
+  power1 = solve_sector_df(c1, w, psi, m_t_factor, force_h) |> get_avg_power
+  power2 = solve_sector_df(c2, w, psi, m_t_factor, force_h) |> get_avg_power
+  power3 = solve_sector_df(c3, w, psi, m_t_factor, force_h) |> get_avg_power
+
+  @test c3.m < c2.m # mass should scale more than x^2
+  @test_broken power1 ≈ 2 * power2     rtol = 0.001
+  @test power3 ≈ power2         rtol = 0.100
+  @test power3 < power2 
+end
+
+
+@testset "Test horizontal and vertical force generation" begin
+  w = 9.0
+  m_t_factor = 1.0
+  psi = 0.0
+  tension = 300_000.0
+  c = eijkelhof_kite()
+  (sol1, _) = solve_sector_df(c, w, psi, m_t_factor, 0.0, shaft_tension = tension)
+  (sol2, _) = solve_sector_df(c, w, psi, m_t_factor, 1000.0, shaft_tension = tension)
+  (sol3, _) = solve_sector_df(c, w, psi, m_t_factor, 2000.0, shaft_tension = tension)
+  (sol4, _) = solve_sector_df(c, w, psi, m_t_factor, -2000.0, shaft_tension = tension)
+
+  f_v2 = signal_sum_of_kites(sol2.force_v, c.n) 
+  @test minimum(f_v2) > c.m * c.gravity * 0.3 * c.n
+  @test maximum(f_v2) < c.m * c.gravity * 1.8 * c.n
+  @test_broken mean(f_v2) ≈ c.m * c.gravity * c.n    rtol = 0.05
+  @test mean(sol1.force_h) ≈ 0.0      atol = 600.0
+  @test mean(sol2.force_h) ≈ 1000.0   atol = 700.0
+  @test mean(sol3.force_h) ≈ 2000.0   atol = 700.0
+  @test mean(sol4.force_h) ≈ -mean(sol3.force_h) atol = 1500.0
+end
+
+

@@ -7,7 +7,7 @@ shaft_section_c_d, shaft_section_m_t_factor, shaft_section_compression,
 power_curve, plot_power_curves, plot_tension_curves,
 heatmap_tension_moment_power, plot_solution, heuristic_flying_speed,
 heuristic_shaft_tension_per_kite, grid_optimize_1d, get_avg_power,
-signal_sum_of_kites, october_kite
+signal_sum_of_kites, october_kite, eijkelhof_kite
 
 include("configuration.jl")
 include("tether.jl")
@@ -20,4 +20,5 @@ include("heuristics.jl")
 include("grid_optimize.jl")
 include("utilities.jl")
 include("kites/october.jl")
+include("kites/eijkelhof.jl")
 end
