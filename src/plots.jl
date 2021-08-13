@@ -105,13 +105,13 @@ function plot_solution(df::DataFrame, solver_input::Dict)
   c = solver_input[:config]
 
   plotstacked(df.psi_p .|> rad2deg
-              , trace(df.power*0.001, lab="power", ylims=(0,Inf))
-              , trace([df.moment df.sum_moments], lab=["moment" "sum moments"])
-              , trace(df.v_k, lab="v_k", ylims=(0,Inf))
-              , trace(df.phi_p .|> rad2deg, lab="phi_p")
-              , trace(df.shaft_tension, lab="sh tension", ylims=(0,Inf))
-              , trace(df.c_l, lab="C_L", ylims=(0,c.design_c_l))
-              , trace([df.force_h df.force_v], lab=["force h" "force v"])
-              , xlims=(0, 450)
+              , trace([df.power signal_sum_of_kites(df.power, c.n)] .* 0.001 , lab="power [kW]", ylims=(0,Inf))
+              , trace([df.moment df.sum_moments], lab=["moment [Nm]" "sum moments"], ylims=(0, Inf))
+              , trace(df.v_k, lab="v_k [m/s]", ylims=(0,maximum(df.v_k) * 1.1))
+              , trace(df.phi_p .|> rad2deg, lab="phi_p [deg]")
+              , trace([df.shaft_tension signal_sum_of_kites(df.shaft_tension, c.n)] ./ 9.81 .* 0.001, lab=["shaft t [ton]" "sum"], ylims=(0,Inf))
+              , trace([ones(size(df.c_l)) .* c.design_c_l df.c_l], lab=["" "C_L"], lc=[:lightgray 1], ylims=(0, c.design_c_l * 1.1))
+              , trace([df.force_h df.force_v signal_sum_of_kites(df.force_h, c.n) signal_sum_of_kites(df.force_v, c.n)] ./ 9.81, lab=["force h [kg]" "force v" "sum force h" "sum force v"])
+              , xlims=(0, 500)
              )
 end

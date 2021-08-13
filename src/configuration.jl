@@ -47,7 +47,7 @@ end
 
 function c_d_coeffs_with_tether(c::Configuration)
   tmp = zeros(size(c.c_d_fun_coeffs))
-  tmp[1] = c.c_d_tether * c.d * c.l / 3.0 / c.s
+  tmp[2] = c.c_d_tether * c.d * c.l / 3.0 / c.s
   tmp + c.c_d_fun_coeffs
 end
 

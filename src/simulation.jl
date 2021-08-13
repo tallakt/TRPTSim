@@ -7,7 +7,7 @@ using Optim
 
 function phi_p_controller(c::Configuration, shaft_tension::Number, force_h::Number, psi_p::Number)
   force_vertical = c.n * (c.m + tether_mass(c.d, c.l)) * c.gravity
-  atan(2 / (c.n * shaft_tension) * (force_vertical * sin(psi_p) + force_h * cos(psi_p)))
+  atan(2 / shaft_tension * (force_vertical * sin(psi_p) + force_h * cos(psi_p)))
 end
 
 
@@ -31,7 +31,7 @@ function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Num
   acc = saver_fun(:v_k_vec_list, v_k_vec_list, acc)
   v_a_vec_list = [v .- SVector(wind, 0, 0) for v=v_k_vec_list]
   acc = saver_fun(:v_a_vec_list, v_a_vec_list, acc)
-  v_a_list = norm.(v_a_vec_list)
+  v_a_list = norm.(v_a_vec_list) .* sign(omega)
   acc = saver_fun(:v_a_list, v_a_list, acc)
   v_a2_list = v_a_list.^2
   r_vec_list = [rot * RotZ(p) * SVector(0.0, 1.0, 0.0) for (rot, p)=zip(rot_psi_elev_psi_p_list, phi_p_list)]
@@ -63,7 +63,7 @@ function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Num
 end
 
 
-function solve_sector(c::Configuration, wind::Number, psi::Number, m_t_factor::Number, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = heuristic_flying_speed(c, wind, psi), shaft_tension::Number = optimal_tension(c, wind, psi, m_t_factor, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0))
+function solve_sector(c::Configuration, wind::Number, psi::Number, m_t_factor::Number, force_h::Number; step_size::Number = deg2rad(2.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = heuristic_flying_speed(c, wind, psi), shaft_tension::Number = optimal_tension(c, wind, psi, m_t_factor, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0))
   solver_input = Dict(:config => c
                       , :speed0 => speed0
                       , :wind => wind
@@ -73,14 +73,13 @@ function solve_sector(c::Configuration, wind::Number, psi::Number, m_t_factor::N
                       , :force_h => force_h
                      )
   psi_p_end = 2 * pi / c.n
-  actual_max_tension = tether_strength(c.d) * c.n / c.safety_factor # TODO gross simplification, need to take into acount shaft geometry
 
   deriv = function(du, u, p, psi_p)
     omega = u[1]
     if omega * c.radius < 1.0
       du[1] = 0.0
     else
-      du[1] = derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, min(shaft_tension, actual_max_tension), m_t_factor, force_h, (_, _, _) -> (), ())[1]
+      du[1] = derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, m_t_factor, force_h, (_, _, _) -> (), ())[1]
     end
   end
   
@@ -91,7 +90,7 @@ function solve_sector(c::Configuration, wind::Number, psi::Number, m_t_factor::N
       omega0 = acc[1]
       u0 = [omega0]
       prob = ODEProblem(deriv, u0, (0, psi_p_end), solver_input) # integrating psi, not time
-      sol = solve(prob, Euler(), dt = step_size)
+      sol = solve(prob, SRIW1(), dt = step_size)
       omega1 = sol.u[end][1]
       (omega1, sol, abs(omega0 / omega1 - 1) < finish_threshold)
     end
@@ -102,7 +101,7 @@ function solve_sector(c::Configuration, wind::Number, psi::Number, m_t_factor::N
 end
 
 
-function solve_sector_df(c::Configuration, wind::Number, psi::Number, m_t_factor::Number, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = heuristic_flying_speed(c, wind, psi), shaft_tension::Number = optimal_tension(c, wind, psi, m_t_factor, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0), solution::ODESolution = solve_sector(c, wind, psi, m_t_factor, force_h, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold, speed0 = speed0, shaft_tension = shaft_tension))
+function solve_sector_df(c::Configuration, wind::Number, psi::Number, m_t_factor::Number, force_h::Number; step_size::Number = deg2rad(2.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = heuristic_flying_speed(c, wind, psi), shaft_tension::Number = optimal_tension(c, wind, psi, m_t_factor, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0), solution::OrdinaryDiffEq.ODECompositeSolution = solve_sector(c, wind, psi, m_t_factor, force_h, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold, speed0 = speed0, shaft_tension = shaft_tension))
   psi_ps = solution.t
   omegas = [u[1] for u=solution.u]
   saved = [derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, m_t_factor, force_h, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}())[2] for (psi_p, omega) in zip(psi_ps, omegas)]
