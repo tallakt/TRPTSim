@@ -1,4 +1,4 @@
-function eijkelhof_kite()
+function eijkelhof()
   # 1.2 MW design
   # https://repository.tudelft.nl/islandora/object/uuid%3Ad65cbee3-1546-4ce4-bfaf-bd3cb34923e3?collection=research
   parasitic_drag_coeff = 0.005
