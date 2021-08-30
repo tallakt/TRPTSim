@@ -22,7 +22,7 @@ function power_curve(c::Configuration, winds, psi::Number, m_t_factor::Number, f
   make_entry = function(wind::Number) 
     shaft_tension = shaft_tension_fun(wind)
     res = solve_sector_df(c, wind, psi, m_t_factor, force_h, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold, speed0 = speed0, shaft_tension = shaft_tension)
-    PowerCurveEntry(wind, get_avg_power(res) * c.n, shaft_tension * c.n)
+    PowerCurveEntry(wind, get_avg_power(res), shaft_tension * c.n)
   end
   PowerCurve(map(make_entry, winds), c, psi, m_t_factor, force_h)
 end
