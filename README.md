@@ -128,9 +128,6 @@ example. The inputs besides the configuration are
   horizontal in the direction perpendicular to the shaft centerline.
 
 
-Note that the `mtr`, like almost all other parameters, is specified per
-kite, as are all signals reported in a solution.
-
 The parameter `mtr` requires more explanation. It represents the shafts ability
 to transfer torque given a certain tension. It is also divided by the looping
 radius to make the value constant during scaling, so that a `mtr` factor is
@@ -157,7 +154,7 @@ calculated by calling
 ```julia
 > radius1 = 1.0
 > radius2 = 5.0
-> llength = 10.0
+> length = 10.0
 > mtr = shaft_section_mtr(radius1, radius2, length) 
 ```
 
@@ -169,6 +166,12 @@ option is to increase the tether diameter and strength. The first option
 requires making the shaft more stubby or adding compressive elements, while the
 latter will hurt low wind performance.
 
+
+Values reported by `solve...` are usually reported per kite. For example the tension trace will report only the tension of a single kite during a full looping cycle. To get the sum of all tensions for all kites combined, use
+
+```julia
+> julia
+```
 
 The flying speed may be estimated by this heuristic.  This is used to
 initialize the solver with an initial flying speed.
