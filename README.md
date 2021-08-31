@@ -93,7 +93,7 @@ These values are what defines the kite parameters. To create a config with some
 different parameters, do
 
 ```julia
-> cfg = new_cfg = config(wi_rigid_daisy(), n = 6, l = 15.0)
+> cfg = config(wi_rigid_daisy(), n = 6, l = 15.0)
 ```
 
 Or modify a confuration by scaling it
