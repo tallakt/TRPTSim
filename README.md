@@ -3,9 +3,9 @@
 This is a simulator for a particular kind of TRPT type. TRPT airborne wind
 energy is a class of windmills that are airborne and where the power of the
 flying part of the windmill is transferred using torquer transfer throuch a
-tensile shaft. It means Tensile Rotary Power Transmission and was (described
+tensile shaft. It means Tensile Rotary Power Transmission and was [described
 first by Oliver
-Tulloch)[https://pureportal.strath.ac.uk/en/publications/tensile-rotary-power-transmission-model-development-for-airborne-]
+Tulloch](https://pureportal.strath.ac.uk/en/publications/tensile-rotary-power-transmission-model-development-for-airborne-)
 
 This particular class of TRPT consiste of a soft shaft (possibly with
 compression rods) and a number of kites rotating in a single layer, connected
@@ -170,7 +170,7 @@ latter will hurt low wind performance.
 Values reported by `solve...` are usually reported per kite. For example the tension trace will report only the tension of a single kite during a full looping cycle. To get the sum of all tensions for all kites combined, use
 
 ```julia
-> julia
+> moment_of_all_kites = signal_sum_of_kites(dataframe.moment, solver_input[:config].n)
 ```
 
 The flying speed may be estimated by this heuristic.  This is used to
