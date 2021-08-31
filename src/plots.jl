@@ -2,9 +2,26 @@ using Plots
 using StackedPlot
 
 
+function plot_from_args_helper(init, args, add_plot_fun)
+  result = init
+
+  for arg in args
+    if typeof(arg) == Pair{String}{PowerCurve}
+      result = add_plot_fun(result, arg.first, arg.second)
+    elseif typeof(arg) == Tuple{String,PowerCurve}
+      result = add_plot_fun(result, arg[1], arg[2])
+    elseif typeof(arg) == PowerCurve
+      result = add_plot(result, "", arg)
+    end
+  end
+
+  result
+end
+
+
 function plot_power_curves(args...)
   #pc::PowerCurve)
-  result = plot(xlabel = "wind m/s", ylabel = "power kW")
+  init = plot(xlabel = "wind [m/s]", ylabel = "power of all kites [kW]")
 
   function add_plot(p, label, pc)
     plot!(p
@@ -17,21 +34,13 @@ function plot_power_curves(args...)
          )
   end
 
-  for arg in args
-    if typeof(arg) == Pair{String}{PowerCurve}
-      result = add_plot(result, arg.first, arg.second)
-    elseif typeof(arg) == PowerCurve
-      result = add_plot(result, "", arg)
-    end
-  end
-
-  result
+  plot_from_args_helper(init, args, add_plot)
 end
 
 
 function plot_tension_curves(args...)
   #pc::PowerCurve)
-  result = plot(xlabel = "wind m/s", ylabel = "tension ton")
+  init = plot(xlabel = "wind m/s", ylabel = "tension ton")
 
   function add_plot(p, label, pc)
     plot!(p
@@ -44,21 +53,13 @@ function plot_tension_curves(args...)
          )
   end
 
-  for arg in args
-    if typeof(arg) == Pair{String}{PowerCurve}
-      result = add_plot(result, arg.first, arg.second)
-    elseif typeof(arg) == PowerCurve
-      result = add_plot(result, "", arg)
-    end
-  end
-
-  result
+  plot_from_args_helper(init, args, add_plot)
 end
 
 
 function plot_vmg_curves(args...)
   #pc::PowerCurve)
-  result = plot(xlabel = "wind m/s", ylabel = "VMG")
+  init = plot(xlabel = "wind m/s", ylabel = "VMG")
 
   function add_plot(p, label, pc)
     plot!(p
@@ -71,22 +72,14 @@ function plot_vmg_curves(args...)
          )
   end
 
-  for arg in args
-    if typeof(arg) == Pair{String}{PowerCurve}
-      result = add_plot(result, arg.first, arg.second)
-    elseif typeof(arg) == PowerCurve
-      result = add_plot(result, "", arg)
-    end
-  end
-
-  result
+  plot_from_args_helper(init, args, add_plot)
 end
 
 
-function heatmap_tension_moment_power(c::Configuration, wind::Number, psi::Number, shaft_tensions, m_t_factors, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = heuristic_flying_speed(c, wind, psi))
+function heatmap_tension_moment_power(c::Configuration, wind::Number, psi::Number, shaft_tensions, mtrs, force_h::Number; step_size::Number = deg2rad(1.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = heuristic_flying_speed(c, wind, psi))
 
-  function fun(t, m_t)
-    (df,_)=TRPTSim.solve_sector_df(c, wind, psi, t, m_t, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0) 
+  function fun(t, mtr)
+    (df,_)=TRPTSim.solve_sector_df(c, wind, psi, t, mtr, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0) 
     if maximum(df.c_l) > c.design_c_l
       NaN
     else
@@ -94,9 +87,9 @@ function heatmap_tension_moment_power(c::Configuration, wind::Number, psi::Numbe
     end
   end
 
-  heatmap(m_t_factors
+  heatmap(mtrs
           , shaft_tensions
-          , [fun(t, m_t) for t = shaft_tensions, m_t=m_t_factors]
+          , [fun(t, mtr) for t = shaft_tensions, mtr=mtrs]
          )
 end
 

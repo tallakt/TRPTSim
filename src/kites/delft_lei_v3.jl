@@ -1,6 +1,6 @@
 function delft_lei_v3()
   # https://wes.copernicus.org/articles/4/1/2019/
-  # M/T factor 3.0 is fine for this kite
+  # M/(T R) factor 0.1 is fine for this kite
   config(n = 3
          , m = 22.8
          , s = 19.75 # 25.0 flat, wingspan 8.3 m, chord 2.2 m

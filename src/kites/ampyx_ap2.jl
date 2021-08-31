@@ -4,7 +4,7 @@ function ampyx_ap2()
   # control. Renewable Energy.
   # http://awesco.eu/publication/malz-2019-a/malz-2019-a.pdf
   #
-  # M/T factor 1-2
+  # M/T factor 0.05
   config(n = 3
          , m = 36.8
          , s = 3.0    # b = 5.5, c = 0.55

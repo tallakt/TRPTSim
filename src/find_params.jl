@@ -35,16 +35,16 @@ function optimal_tension_mtf(c::Configuration, wind::Number, psi::Number, force_
 end
 
 
-function optimal_tension(c::Configuration, wind::Number, psi::Number, m_t_factor::Number, force_h::Number; step_size::Number = deg2rad(2.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0 = heuristic_flying_speed(c, wind, psi))
+function optimal_tension(c::Configuration, wind::Number, psi::Number, mtr::Number, force_h::Number; step_size::Number = deg2rad(2.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0 = heuristic_flying_speed(c, wind, psi))
   
   minimizer = function(tension::Float64)
-    (df, _) = solve_sector_df(c, wind, psi, m_t_factor, force_h; step_size = step_size, iterations = iterations, speed0 = speed0, shaft_tension = tension)
+    (df, _) = solve_sector_df(c, wind, psi, mtr, force_h; step_size = step_size, iterations = iterations, speed0 = speed0, shaft_tension = tension)
     res = if any(df.c_l .>= c.design_c_l) || tension < 0 || any(df.shaft_tension .> tether_strength(c.d) / c.safety_factor)
       # we dont want to go here
       NaN
     else
       if size(df, 1) > 0 
-        if m_t_factor > 0.0
+        if mtr > 0.0
           -mean(df.power)
         else
           # maximize tension if unloaded

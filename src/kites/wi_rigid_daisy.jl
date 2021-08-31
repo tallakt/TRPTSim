@@ -12,7 +12,7 @@ function wi_rigid_daisy()
   # This allows for a more reliable comparison between the performance of the
   # HQ Kites and the foam wings.
   #
-  # An M/T factor of 0.2 is appropriate for this rig
+  # An M/(T R) factor of 0.05 is appropriate for this rig
   config(n = 3
          , m = 0.420
          , s = 1.0 * 0.2
