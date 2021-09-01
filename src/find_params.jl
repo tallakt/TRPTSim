@@ -39,7 +39,7 @@ function optimal_tension(c::Configuration, wind::Number, psi::Number, mtr::Numbe
   
   minimizer = function(tension::Float64)
     (df, _) = solve_sector_df(c, wind, psi, mtr, force_h; step_size = step_size, iterations = iterations, speed0 = speed0, shaft_tension = tension)
-    res = if any(df.c_l .>= c.design_c_l) || tension < 0 || any(df.shaft_tension .> tether_strength(c.d) / c.safety_factor)
+    if any(df.c_l .>= c.design_c_l) || tension < 0 || any(df.shaft_tension .> tether_strength(c.d) / c.safety_factor)
       # we dont want to go here
       NaN
     else
@@ -54,7 +54,6 @@ function optimal_tension(c::Configuration, wind::Number, psi::Number, mtr::Numbe
         NaN
       end
     end
-    res
   end
   grid_optimize_1d(exp.(range(-4.0, 0.0, length = 30)) .* heuristic_shaft_tension_per_kite(c, wind, psi) * 3.0, minimizer)
 end

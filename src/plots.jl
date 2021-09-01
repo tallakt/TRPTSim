@@ -11,7 +11,7 @@ function plot_from_args_helper(init, args, add_plot_fun)
     elseif typeof(arg) == Tuple{String,PowerCurve}
       result = add_plot_fun(result, arg[1], arg[2])
     elseif typeof(arg) == PowerCurve
-      result = add_plot(result, "", arg)
+      result = add_plot_fun(result, "", arg)
     end
   end
 

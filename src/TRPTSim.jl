@@ -7,8 +7,8 @@ shaft_section_c_d, shaft_section_m_t_factor, shaft_section_mtr,
 shaft_section_compression, power_curve, plot_power_curves, plot_tension_curves,
 heatmap_tension_moment_power, plot_solution, heuristic_flying_speed,
 heuristic_shaft_tension_per_kite, grid_optimize_1d, get_avg_power,
-signal_sum_of_kites, october_kite, eijkelhof, wi_rigid_daisy, ampyx_ap2,
-delft_lei_v3
+signal_sum_of_kites, get_bridle_alpha_b_and_force, max_alpha_b, october_kite,
+eijkelhof, wi_rigid_daisy, ampyx_ap2, delft_lei_v3
 
 include("configuration.jl")
 include("tether.jl")

@@ -90,7 +90,8 @@ function solve_sector(c::Configuration, wind::Number, psi::Number, mtr::Number, 
       omega0 = acc[1]
       u0 = [omega0]
       prob = ODEProblem(deriv, u0, (0, psi_p_end), solver_input) # integrating psi, not time
-      sol = solve(prob, SRIW1(), dt = step_size)
+      # sol = solve(prob, SRIW1(), dt = step_size)
+      sol = solve(prob, Euler(), dt = step_size)
       omega1 = sol.u[end][1]
       (omega1, sol, abs(omega0 / omega1 - 1) < finish_threshold)
     end
@@ -101,7 +102,7 @@ function solve_sector(c::Configuration, wind::Number, psi::Number, mtr::Number, 
 end
 
 
-function solve_sector_df(c::Configuration, wind::Number, psi::Number, mtr::Number, force_h::Number; step_size::Number = deg2rad(2.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = heuristic_flying_speed(c, wind, psi), shaft_tension::Number = optimal_tension(c, wind, psi, mtr, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0), solution::OrdinaryDiffEq.ODECompositeSolution = solve_sector(c, wind, psi, mtr, force_h, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold, speed0 = speed0, shaft_tension = shaft_tension))
+function solve_sector_df(c::Configuration, wind::Number, psi::Number, mtr::Number, force_h::Number; step_size::Number = deg2rad(2.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = heuristic_flying_speed(c, wind, psi), shaft_tension::Number = optimal_tension(c, wind, psi, mtr, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0), solution::DiffEqBase.AbstractODESolution = solve_sector(c, wind, psi, mtr, force_h, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold, speed0 = speed0, shaft_tension = shaft_tension))
   psi_ps = solution.t
   omegas = [u[1] for u=solution.u]
   saved = [derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, mtr, force_h, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}())[2] for (psi_p, omega) in zip(psi_ps, omegas)]
@@ -124,6 +125,17 @@ function solve_sector_df(c::Configuration, wind::Number, psi::Number, mtr::Numbe
   force_h = [dot(ld, RotZ(psi) * SVector(0.0, 1.0, 0.0)) for ld = lift_drag_vec]
   force_v = [dot(ld, SVector(0.0, 0.0, 1.0)) + st * sin(c.elev) - c.gravity * mass_sum[1] for (ld, st) = zip(lift_drag_vec, shaft_tension_actual)]
 
+  # calculate bridle force and angle
+  deriv_omega_by_psi_p = saved_value(:deriv_omega_by_psi_p)
+  deriv_omega = deriv_omega_by_psi_p .* omega
+  v_k_vec = saved_value_per_kite(:v_k_vec_list)
+  moment = saved_value_per_kite(:moment_list)
+  r_vec = saved_value_per_kite(:r_vec_list)
+  tether_force_radial = c.m .* omega .^ 2 .* c.radius .- [dot((lift .+ drag), r_vec) for (lift, drag, r_vec) = zip(lift_vec, drag_vec, r_vec) ] 
+  tether_force_travel = c.m .* deriv_omega .* c.radius .- [dot((lift .+ drag), v_k_vec) ./ norm(v_k_vec) - mom / c.radius for (lift, drag, v_k_vec, mom) = zip(lift_vec, drag_vec, v_k_vec, moment) ] 
+  bridle_force = [norm([r, t]) for (r, t) = zip(tether_force_radial, tether_force_travel)]
+  bridle_angle = [atan(t, r) for (r, t) = zip(tether_force_radial, tether_force_travel)]
+
   df = DataFrame(:psi_p => psi_p_360
                  , :omega => omega
                  , :power => omega .* mtr .* c.radius .* shaft_tension_actual
@@ -132,24 +144,27 @@ function solve_sector_df(c::Configuration, wind::Number, psi::Number, mtr::Numbe
                  , :mass_sum => mass_sum
                  , :phi_p => saved_value_per_kite(:phi_p_list)
                  , :c_vec => c_vec
-                 , :v_k_vec => saved_value_per_kite(:v_k_vec_list)
+                 , :v_k_vec => v_k_vec
                  , :v_a_vec => saved_value_per_kite(:v_a_vec_list)
                  , :v_a => saved_value_per_kite(:v_a_list)
-                 , :r_vec => saved_value_per_kite(:r_vec_list)
+                 , :r_vec => r_vec
                  , :l_n_vec => saved_value_per_kite(:l_n_vec_list)
                  , :desired_lift => saved_value_per_kite(:desired_lift_list)
                  , :c_l => saved_value_per_kite(:c_l_list)
                  , :c_d => saved_value_per_kite(:c_d_list)
                  , :lift_vec => lift_vec
                  , :drag_vec => drag_vec
-                 , :moment => saved_value_per_kite(:moment_list)
+                 , :moment => moment
                  , :sum_moments => saved_value(:sum_moments)
                  , :moment_of_inertia => saved_value(:moment_of_inertia)
-                 , :deriv_omega_by_psi_p => saved_value(:deriv_omega_by_psi_p)
+                 , :deriv_omega_by_psi_p => deriv_omega_by_psi_p
+                 , :deriv_omega => deriv_omega
                  , :position => position
                  , :force_h => force_h
                  , :force_v => force_v
                  , :shaft_tension => shaft_tension_actual
+                 , :bridle_force => bridle_force
+                 , :bridle_angle => bridle_angle # zero pointing towards center
                 )
   (df, solution.prob.p)
 end
