@@ -10,7 +10,12 @@ end
 
 
 function shaft_section_mtr(radius_1::Number, radius_2::Number, l::Number)
-  radius_1 / sqrt(2 * radius_1 * radius_2 - radius_1^2 - radius_2^2 + l^2)
+  radius_2 / sqrt(l^2 - radius_1^2 - radius_2^2)
+end
+
+
+function shaft_section_cone_angle(radius_1::Number, radius_2::Number, l::Number)
+  asin((radius_2 - radius_1) / l)
 end
 
 
