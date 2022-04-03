@@ -1,13 +1,15 @@
 # TRPT Simulator
 
+![The Pyramid Illustration](images/illustration.jpg "The Pyramid Illustration")
+
 This is a simulator for a particular kind of TRPT type. TRPT airborne wind
 energy is a class of windmills that are airborne and where the power of the
-flying part of the windmill is transferred using torquer transfer throuch a
+flying part of the windmill is transferred using torque transfer through a
 tensile shaft. It means Tensile Rotary Power Transmission and was [described
 first by Oliver
 Tulloch](https://pureportal.strath.ac.uk/en/publications/tensile-rotary-power-transmission-model-development-for-airborne-)
 
-This particular class of TRPT consiste of a soft shaft (possibly with
+This particular class of TRPT consists of a soft shaft (possibly with
 compression rods) and a number of kites rotating in a single layer, connected
 through a bridle, flying in a ring. And all the kites are of the same type.
 
