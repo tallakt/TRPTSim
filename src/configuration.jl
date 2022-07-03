@@ -47,7 +47,7 @@ end
 
 function c_d_coeffs_with_tether(c::Configuration)
   tmp = zeros(size(c.c_d_fun_coeffs))
-  tmp[2] = c.c_d_tether * c.d * c.l / 3.0 / c.s
+  tmp[2] = c.c_d_tether * c.d * c.l / 4.0 / c.s # we use the most optimistic value for 90 deg twist
   tmp + c.c_d_fun_coeffs
 end
 
