@@ -94,7 +94,7 @@ function heatmap_tension_moment_power(c::Configuration, wind::Number, azimuth::N
         if maximum(df.c_l) > c.design_c_l
             NaN
         else
-            mean(df.power) * c.multiplicity
+            mean(df.power) * c.n
         end
     end
 
@@ -137,13 +137,13 @@ function plot_solution(df::DataFrame, solver_input::Dict)
     (tension_unit, _, tension_factor) = tension_scaling[findlast(x -> x[2] < maximum(abs.(df.shaft_tension)), tension_scaling)]
 
     plotstacked(df.psi_p .|> rad2deg
-                , trace([df.power signal_sum_of_kites(df.power, c.multiplicity)] .* power_factor , lab=["power [$(power_unit)]" "sum power"], ylims=(0, 1.1 * maximum(signal_sum_of_kites(df.power, c.multiplicity) .* power_factor)))
+                , trace([df.power signal_sum_of_kites(df.power, c.n)] .* power_factor , lab=["power [$(power_unit)]" "sum power"], ylims=(0, 1.1 * maximum(signal_sum_of_kites(df.power, c.n) .* power_factor)))
                 , trace([df.moment df.sum_moments] .* moment_factor, lab=["moment [$(moment_unit)]" "sum moments"], ylims=(0, 1.1 * maximum(df.sum_moments .* moment_factor)))
                 , trace(df.v_k, lab="v_k [m/s]", ylims=(0,maximum(df.v_k) * 1.1))
                 , trace(df.phi_p .|> rad2deg, lab="phi_p [deg]")
-                , trace([df.shaft_tension signal_sum_of_kites(df.shaft_tension, c.multiplicity)] .* tension_factor, lab=["shaft tension [$(tension_unit)]" "sum"], ylims=(0, 1.1 * maximum(signal_sum_of_kites(df.shaft_tension, c.multiplicity) .* tension_factor)))
+                , trace([df.shaft_tension signal_sum_of_kites(df.shaft_tension, c.n)] .* tension_factor, lab=["shaft tension [$(tension_unit)]" "sum"], ylims=(0, 1.1 * maximum(signal_sum_of_kites(df.shaft_tension, c.n) .* tension_factor)))
                 , trace([ones(size(df.c_l)) .* c.design_c_l df.c_l], lab=["" "C_L"], lc=[:gray 1], ylims=(0, c.design_c_l * 1.1))
-                , trace([df.force_h signal_sum_of_kites(df.force_h, c.multiplicity) df.force_v signal_sum_of_kites(df.force_v, c.multiplicity)] .* force_factor, lab=["force horiz [$(force_unit)]" "sum force h" "force vert" "sum force v"])
+                , trace([df.force_h signal_sum_of_kites(df.force_h, c.n) df.force_v signal_sum_of_kites(df.force_v, c.n)] .* force_factor, lab=["force horiz [$(force_unit)]" "sum force h" "force vert" "sum force v"])
                 , xlims=(0, 500)
                )
 end
