@@ -89,9 +89,10 @@ function solve_sector(c::Configuration, wind::Number, psi::Number, mtr::Number, 
         else
             omega0 = acc[1]
             u0 = [omega0]
-            prob = ODEProblem(deriv, u0, (0, psi_p_end), solver_input) # integrating psi, not time
+            prob = ODEProblem(deriv, u0, (0, psi_p_end), p = solver_input) # integrating psi, not time
             # sol = solve(prob, SRIW1(), dt = step_size)
-            sol = solve(prob, Euler(), dt = step_size)
+             prob2 = remake(prob, interpret_symbolicmap = false)
+            sol = solve(prob2, Euler(), dt = step_size)
             omega1 = sol.u[end][1]
             (omega1, sol, abs(omega0 / omega1 - 1) < finish_threshold)
         end
@@ -166,7 +167,7 @@ function solve_sector_df(c::Configuration, wind::Number, psi::Number, mtr::Numbe
                    , :bridle_force => bridle_force
                    , :bridle_angle => bridle_angle # zero pointing towards center
                   )
-    (df, solution.prob.p)
+    (df, solver_input.prob.kwargs[:p])
 end
 
 
