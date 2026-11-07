@@ -1,9 +1,8 @@
 # The Pyramid: calculations
 
-The calculations of `../the_pyramid.pdf` (AWEC 2021) were first written as a Maple worksheet. They
-have moved to samara, a computer algebra system written for
-this kind of work, and the worksheet is no longer part of the repository. It is still in the git
-history, as the earlier commits show.
+The calculations of `../the_pyramid.pdf` (AWEC 2021) were first made in a worksheet. They have
+moved to samara, a computer algebra system written for this kind of work, and the samara files in
+this folder are now the calculations of the paper.
 
 | file | what it is |
 |---|---|
