@@ -39,8 +39,8 @@ function optimal_tension(c::Configuration, wind::Number, psi::Number, mtr::Numbe
 
     minimizer = function(tension::Float64)
         (df, _) = solve_sector_df(c, wind, psi, mtr, force_h; step_size = step_size, iterations = iterations, speed0 = speed0, shaft_tension = tension)
-        if any(df.c_l .>= c.design_c_l) || tension < 0 || any(df.shaft_tension .> tether_strength(c.d) / c.safety_factor)
-            # we dont want to go here
+        if any(df.c_l .>= c.design_c_l) || tension < 0 || any(df.shaft_tension .> tether_strength(c.d) / c.safety_factor) || any(df.v_k .<= 1.0)
+            # we dont want to go here (v_k <= 1 m/s: the kites have stalled, solve_sector froze omega)
             NaN
         else
             if size(df, 1) > 0 
@@ -55,7 +55,11 @@ function optimal_tension(c::Configuration, wind::Number, psi::Number, mtr::Numbe
             end
         end
     end
-    grid_optimize_1d(exp.(range(-4.0, 0.0, length = 30)) .* heuristic_shaft_tension_per_kite(c, wind, psi) * 3.0, minimizer)
+    # The tensions tried go down from three times the heuristic, but from no more than a little over
+    # what the tether may carry: with a high glide number the heuristic speed put the whole grid
+    # above it, and no tension was found in strong wind.
+    top = min(heuristic_shaft_tension_per_kite(c, wind, psi) * 3.0, 1.05 * tether_strength(c.d) / c.safety_factor)
+    grid_optimize_1d(exp.(range(-4.0, 0.0, length = 30)) .* top, minimizer)
 end
 
 

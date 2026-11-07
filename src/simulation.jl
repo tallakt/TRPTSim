@@ -6,12 +6,18 @@ using DataFrames
 using Optim
 
 function phi_p_controller(c::Configuration, shaft_tension::Number, force_h::Number, psi_p::Number)
-    force_vertical = c.n * (c.m + tether_mass(c.d, c.l)) * c.gravity
-    atan(2 / shaft_tension * (force_vertical * sin(psi_p) + force_h * cos(psi_p)))
+    # The roll phi tilts the lift out from the centre by T tan(phi). Before the elevation and
+    # azimuth rotations the radial unit vector is (0, cos psi_p, sin psi_p), and up across the shaft
+    # is (0, 0, -1) (z points down), so tan(phi) = (2 / T)(-F_up sin psi_p + F_h cos psi_p) gives
+    # each kite the average force F_up up across the shaft and F_h sideways (the paper's
+    # controller, eq. 28-30). Each kite carries the part of the weight across the shaft of itself
+    # and of half its tether; the ground carries the other half.
+    force_up = (c.m + 0.5 * tether_mass(c.d, c.l)) * c.gravity * cos(c.elev)
+    atan(2 / shaft_tension * (-force_up * sin(psi_p) + force_h * cos(psi_p)))
 end
 
 
-function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Number, psi_p::Number, psi::Number, shaft_tension::Number, mtr::Number, force_h::Number, saver_fun::Function, acc)
+function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Number, psi_p::Number, psi::Number, shaft_tension::Number, mtr::Number, force_h::Number, saver_fun::Function, acc; shaft = shaft_geometry(c, mtr))
     psi_p_list = psi_p .+ range(0, 2 * pi, length = c.n + 1)[1:(end - 1)];
     acc = saver_fun(:psi_p_list, psi_p_list, acc)
 
@@ -38,12 +44,22 @@ function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Num
     acc = saver_fun(:r_vec_list, r_vec_list, acc)
     l_n_vec_list = [normalize(cross(r, v)) for (r,v)=zip(r_vec_list, v_a_vec_list)]
     acc = saver_fun(:l_n_vec_list, l_n_vec_list, acc)
-    #TODO also use drag force along shaft tension direction
-    desired_lift_list = [(shaft_tension - mass_sum * dot(gravity, c_vec)) / dot(c_vec, l_n) for l_n = l_n_vec_list]
+    # The lift that holds the shaft tension, less the drag's part along the shaft. The drag follows
+    # from C_L, so the lift is found twice: first without the drag, then with the drag of the first.
+    lift_for = (drag_along_shaft, l_n) -> (shaft_tension - mass_sum * dot(gravity, c_vec) - drag_along_shaft) / dot(c_vec, l_n)
+    c_l_for = (l, v_a2) -> clamp(2 * l / (c.s * c.rho * v_a2), 0.0, c.design_c_l)
+    # the kite's polar plus its tether's drag (tether.jl), which depends on the kite's speed and
+    # the tension, not on C_L
+    c_d_tether_list = [tether_c_d(c, shaft, abs(omega) * c.radius, abs(v_a), shaft_tension) for v_a = v_a_list]
+    acc = saver_fun(:c_d_tether_list, c_d_tether_list, acc)
+    c_d_of = (c_l, c_d_t) -> calc_c_d(c, c_l, coeffs = c.c_d_fun_coeffs) + c_d_t
+    drag_along_shaft = (c_l, c_d_t, v_a, v_a_vec) -> dot(-0.5 * c.rho * v_a * c_d_of(c_l, c_d_t) * c.s * v_a_vec, c_vec)
+    c_l_first = [c_l_for(lift_for(0.0, l_n), v_a2) for (l_n, v_a2) = zip(l_n_vec_list, v_a2_list)]
+    desired_lift_list = [lift_for(drag_along_shaft(c_l, c_d_t, v_a, v_a_vec), l_n) for (c_l, c_d_t, v_a, v_a_vec, l_n) = zip(c_l_first, c_d_tether_list, v_a_list, v_a_vec_list, l_n_vec_list)]
     acc = saver_fun(:desired_lift_list, desired_lift_list, acc)
-    c_l_list = clamp.([2 * l / (c.s * c.rho * v) for (l, v) = zip(desired_lift_list, v_a2_list)], 0.0, c.design_c_l)
+    c_l_list = [c_l_for(l, v_a2) for (l, v_a2) = zip(desired_lift_list, v_a2_list)]
     acc = saver_fun(:c_l_list, c_l_list, acc)
-    c_d_list = [calc_c_d(c, c_l) for c_l = c_l_list]
+    c_d_list = [c_d_of(c_l, c_d_t) for (c_l, c_d_t) = zip(c_l_list, c_d_tether_list)]
     acc = saver_fun(:c_d_list, c_d_list, acc)
 
     lift_vec_list = [0.5 * c.rho * v_a2 * c_l * c.s * l_n_vec for (v_a2, l_n_vec, c_l) = zip(v_a2_list, l_n_vec_list, c_l_list)]
@@ -57,7 +73,11 @@ function derivative_of_omega_by_psi_p(c::Configuration, wind::Number, omega::Num
     acc = saver_fun(:sum_moments, sum_moments, acc)
     moment_of_inertia = c.n * c.m * c.radius^2 # tether inertia not accounted for
     acc = saver_fun(:moment_of_inertia, moment_of_inertia, acc)
-    deriv_omega_by_psi_p = 1 / moment_of_inertia / omega * (sum_moments - mtr * c.radius * shaft_tension * c.n)
+    # The shaft's moment is Lambda r1 times the tension the kites actually pull, the same tension
+    # the power is computed from (it differs from shaft_tension where C_L is clamped).
+    shaft_tension_list = [dot(l_vec + d_vec + mass_sum * gravity, c_vec) for (l_vec, d_vec) = zip(lift_vec_list, drag_vec_list)]
+    acc = saver_fun(:shaft_tension_list, shaft_tension_list, acc)
+    deriv_omega_by_psi_p = 1 / moment_of_inertia / omega * (sum_moments - mtr * c.radius * sum(shaft_tension_list))
     acc = saver_fun(:deriv_omega_by_psi_p, deriv_omega_by_psi_p, acc)
     (deriv_omega_by_psi_p, acc)
 end
@@ -73,13 +93,14 @@ function solve_sector(c::Configuration, wind::Number, psi::Number, mtr::Number, 
                         , :force_h => force_h
                        )
     psi_p_end = 2 * pi / c.n
+    shaft = shaft_geometry(c, mtr)
 
     deriv = function(du, u, p, psi_p)
         omega = u[1]
         if omega * c.radius < 1.0
             du[1] = 0.0
         else
-            du[1] = derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, mtr, force_h, (_, _, _) -> (), ())[1]
+            du[1] = derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, mtr, force_h, (_, _, _) -> (), (); shaft = shaft)[1]
         end
     end
 
@@ -105,7 +126,8 @@ end
 function solve_sector_df(c::Configuration, wind::Number, psi::Number, mtr::Number, force_h::Number; step_size::Number = deg2rad(2.0), iterations::Integer = 50, finish_threshold::Number = 0.001, speed0::Number = heuristic_flying_speed(c, wind, psi), shaft_tension::Number = optimal_tension(c, wind, psi, mtr, force_h, step_size = step_size, iterations = iterations, finish_threshold = finish_threshold, speed0 = speed0), solution::DiffEqBase.AbstractODESolution = solve_sector(c, wind, psi, mtr, force_h, iterations = iterations, step_size = step_size, finish_threshold = finish_threshold, speed0 = speed0, shaft_tension = shaft_tension))
     psi_ps = solution.t
     omegas = [u[1] for u=solution.u]
-    saved = [derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, mtr, force_h, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}())[2] for (psi_p, omega) in zip(psi_ps, omegas)]
+    shaft = shaft_geometry(c, mtr)
+    saved = [derivative_of_omega_by_psi_p(c, wind, omega, psi_p, psi, shaft_tension, mtr, force_h, (k, v, acc) -> (acc[k] = v; acc), Dict{Symbol, Any}(); shaft = shaft)[2] for (psi_p, omega) in zip(psi_ps, omegas)]
     sector_times = diff(psi_ps) ./ omegas[1:(end - 1)]
     t = foldl((acc, _) -> vcat(acc, sector_times .+ maximum(acc)), 1:c.n, init = [0])
 
@@ -123,7 +145,9 @@ function solve_sector_df(c::Configuration, wind::Number, psi::Number, mtr::Numbe
     c_vec = saved_value(:c_vec)
     shaft_tension_actual = [dot(ld + SVector(0.0, 0.0, c.gravity * mass_sum[1]), cv) for (ld, cv) = zip(lift_drag_vec, c_vec)]
     force_h = [dot(ld, RotZ(psi) * SVector(0.0, 1.0, 0.0)) for ld = lift_drag_vec]
-    force_v = [dot(ld, SVector(0.0, 0.0, 1.0)) + st * sin(c.elev) - c.gravity * mass_sum[1] for (ld, st) = zip(lift_drag_vec, shaft_tension_actual)]
+    # the aerodynamic force up across the shaft, which carries the weight (z points down)
+    up_across_shaft = RotZ(psi) * RotY(c.elev) * SVector(0.0, 0.0, -1.0)
+    force_v = [dot(ld, up_across_shaft) for ld = lift_drag_vec]
 
     # calculate bridle force and angle
     deriv_omega_by_psi_p = saved_value(:deriv_omega_by_psi_p)
@@ -152,6 +176,7 @@ function solve_sector_df(c::Configuration, wind::Number, psi::Number, mtr::Numbe
                    , :desired_lift => saved_value_per_kite(:desired_lift_list)
                    , :c_l => saved_value_per_kite(:c_l_list)
                    , :c_d => saved_value_per_kite(:c_d_list)
+                   , :c_d_tether => saved_value_per_kite(:c_d_tether_list) # the tether's part of c_d
                    , :lift_vec => lift_vec
                    , :drag_vec => drag_vec
                    , :moment => moment

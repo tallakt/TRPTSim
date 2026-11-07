@@ -10,7 +10,9 @@ export config, config_to_dict, scale, scale_to_area, calc_c_d,
        heuristic_flying_speed, heuristic_shaft_tension_per_kite,
        grid_optimize_1d, get_avg_power, signal_sum_of_kites,
        get_bridle_alpha_b_and_force, max_alpha_b, october_kite, eijkelhof,
-       wi_rigid_daisy, ampyx_ap2, delft_lei_v3
+       wi_rigid_daisy, ampyx_ap2, delft_lei_v3, induced_drag_factor, shaft_twist,
+       cartwheel_factor, tether_shape_factor, shaft_geometry, tether_c_d,
+       induction_from_thrust_coefficient, aerodynamic_thrust, induced_wind
 
 include("configuration.jl")
 include("tether.jl")
@@ -18,6 +20,7 @@ include("simulation.jl")
 include("find_params.jl")
 include("shaft.jl")
 include("power_curve.jl")
+include("induction.jl")
 include("plots.jl")
 include("heuristics.jl")
 include("grid_optimize.jl")
