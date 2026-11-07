@@ -3,6 +3,12 @@ using LaTeXStrings
 using Roots
 
 
+# The largest moment-to-tension-to-radius ratio a shaft of length l can carry, over all twists. The
+# 2022 plots drew r_0 / sqrt(l^2 - r_0^2 - r_1^2), which is the value at a twist of 90 degrees and a
+# little lower (1 % for r_0 = 20, r_1 = 50, l = 100). For a long shaft this goes to r_0 / l.
+exact_lambda_max(r_0, r_1, l) = (sqrt(l^2 - (r_1 - r_0)^2) - sqrt(l^2 - (r_1 + r_0)^2)) / (2 * r_1)
+
+
 println("plot_for_3_mm_tether()")
 function plot_for_3_mm_tether(; nondimensional = false, scale = 1.0, c_d_t = 1.1, d = 0.003, safety_factor = 4.0, nominal_wind = 9.0, elevation = 35.0, target_glide_ratio = 8.0)
   rho = 1.225;
@@ -57,7 +63,7 @@ function plot_for_3_mm_tether(; nondimensional = false, scale = 1.0, c_d_t = 1.1
       lambdas_k0 = 1 ./ 2 ./ glide_ratios_k0 
       lambdas_k1 = 1 ./ 2 ./ glide_ratios_k1 
       lambdas_k2 = 1 ./ 2 ./ glide_ratios_k2 
-      lambda_max = r_0 ./ sqrt.(lengths.^2 .- r_0.^2 .- r_1.^2)
+      lambda_max = exact_lambda_max.(r_0, r_1, lengths)
       plot(lengths ./ d
            , [lambdas lambdas_k0 lambdas_k1 lambdas_k2]
            , ylabel = L"\Lambda"
@@ -88,7 +94,7 @@ function plot_for_3_mm_tether(; nondimensional = false, scale = 1.0, c_d_t = 1.1
       lambdas_k0 = 1 ./ 2 ./ glide_ratios_k0 
       lambdas_k1 = 1 ./ 2 ./ glide_ratios_k1 
       lambdas_k2 = 1 ./ 2 ./ glide_ratios_k2 
-      lambda_max = r_0 ./ sqrt.(lengths.^2 .- r_0.^2 .- r_1.^2)
+      lambda_max = exact_lambda_max.(r_0, r_1, lengths)
       plot(lengths
            , [lambdas lambdas_k0 lambdas_k1 lambdas_k2]
            , ylabel = L"\Lambda"

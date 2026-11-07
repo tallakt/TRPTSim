@@ -68,8 +68,10 @@ end
 
 function find_possible_buckling_theta(r0, r1, r2, l0, l1)
   try
-    (true, find_zero(th -> lambda(r0, r2, l0 + l1) - find_double_section_lambda(r0, r1, r2, l0, l1, th), pi/2))
-  catch
+    (true, find_zero(th -> lambda(r0, r2, l0 + l1, th) - find_double_section_lambda(r0, r1, r2, l0, l1, th), pi/2))
+  catch e
+    # not finding a root means no buckling; a coding error must not be hidden here
+    e isa MethodError && rethrow()
     (false, NaN)
   end
 end

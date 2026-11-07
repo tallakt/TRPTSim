@@ -4,6 +4,12 @@ using Rotations
 using Plots
 using LaTeXStrings
 
+# The paper says its plots are made at an elevation angle of 30 degrees. The 2022 figures were drawn
+# with pi / 3 (60 degrees) in these functions, which the text does not say; the optimal Lambda
+# differs between the two at low glide numbers (0.103 at 30 and 0.132 at 60 degrees for C_L/C_D = 5).
+# Set this to pi / 3 to draw the figures as they were.
+const DEFAULT_ELEVATION_ANGLE = pi / 6
+
 # accoring to document chapter about optimal Lambda (moment to tension to radius)
 # coordinate system has x-axis horizontal, z-axis along center of shaft and
 # y-axis mostly upwards
@@ -106,7 +112,7 @@ println("plot_power_output_vs_lambda_at_different_windspeeds()")
 function plot_power_output_vs_lambda_at_different_windspeeds()
   psi = pi / 2
   wind_speeds = 10.0:5.0:30.0
-  elevation_angle = pi / 3
+  elevation_angle = DEFAULT_ELEVATION_ANGLE
   lift_coefficient = 1.5
   drag_coefficient = lift_coefficient / 20.0
   density_of_air = 1.225
@@ -144,7 +150,7 @@ println("plot_power_output_vs_lambda_at_different_glide_numbers()")
 function plot_power_output_vs_lambda_at_different_glide_numbers()
   psi = pi / 2
   wind_speed = 12.0
-  elevation_angle = pi / 3
+  elevation_angle = DEFAULT_ELEVATION_ANGLE
   lift_coefficient = 1.5
   glide_numbers = 5:5:30
   density_of_air = 1.225
@@ -164,7 +170,7 @@ println("plot_power_output_vs_lambda()")
 function plot_power_output_vs_lambda()
   psi = pi / 2
   wind_speed = 10.0
-  elevation_angle = pi / 3
+  elevation_angle = DEFAULT_ELEVATION_ANGLE
   lift_coefficient = 1.5
   drag_coefficient = lift_coefficient / 20.0
   density_of_air = 1.225

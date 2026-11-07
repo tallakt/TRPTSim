@@ -32,8 +32,18 @@ note on the drag of a tether with a belly.
 
 The seven figures of the paper are drawn by the Julia scripts in `figures/`, and a few by hand in
 Sketch. samara has no plots yet, so the figures are not redrawn here: `pyramid.samara` makes
-tables of the same numbers. The scripts are left as they were, so the figures can be drawn again
-as before. Where they differ from the numbers in the addendum, the figures in the paper are the old ones.
+tables of the same numbers. The scripts have three corrections since 2022, so that a figure drawn
+now differs from the one in the paper:
+
+- `optimal_force.jl` draws its plots at the elevation of 30 degrees the text says, set in
+  `DEFAULT_ELEVATION_ANGLE` (the 2022 figures used 60 degrees: set it to `pi / 3` to get them back).
+- `zero_drag_kite_shaft_length.jl` draws the exact largest moment-to-tension-to-radius ratio
+  (`exact_lambda_max`) where it drew the value at a twist of 90 degrees.
+- `double_section.jl` calls `lambda` with its fourth argument in the search for buckling, and an
+  error in the code is no longer hidden by the `try`/`catch`. For r0 = r1 = 1, r2 = 4 and the
+  splits 10/10, 5/15 and 15/5 the search finds no buckling, and the results are as before.
+
+The addendum describes why. The figures in the paper are the old ones.
 
 ## The PDF
 
