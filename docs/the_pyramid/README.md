@@ -39,9 +39,15 @@ now differs from the one in the paper:
   `DEFAULT_ELEVATION_ANGLE` (the 2022 figures used 60 degrees: set it to `pi / 3` to get them back).
 - `zero_drag_kite_shaft_length.jl` draws the exact largest moment-to-tension-to-radius ratio
   (`exact_lambda_max`) where it drew the value at a twist of 90 degrees.
-- `double_section.jl` calls `lambda` with its fourth argument in the search for buckling, and an
-  error in the code is no longer hidden by the `try`/`catch`. For r0 = r1 = 1, r2 = 4 and the
-  splits 10/10, 5/15 and 15/5 the search finds no buckling, and the results are as before.
+- `double_section.jl` no longer searches for buckling. In the 2022 code the search never ran (a
+  call missed an argument and a `try` hid it). With the call fixed it ran, as an unbracketed secant
+  search over all twists, and found twists of 180 to 3060 degrees for l0 between about 11 and 16 m
+  (15/5 among them), where the plot then dropped to 0 or worse; the real buckling, below l0 = 8 m,
+  it never found. The script now works the shaft out at each twist from 0 to 180 degrees: two
+  sections while the tethers pull the bridle joint outwards (with the horizontal part of their
+  tension, where the old check used the whole tension), one straight section r0 -> r2 once the
+  bridle goes slack. The curve is within 0.1 % of the 2022 figure for l0 of 3.5 m and more, and up
+  to 3.3 % higher below, where the 2022 code left out the buckled, single-section shaft.
 
 The addendum describes why. The figures in the paper are the old ones.
 

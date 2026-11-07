@@ -1,94 +1,83 @@
-using Roots
 using Plots
-using Rotations
-using LinearAlgebra
 using LaTeXStrings
 
+# The two-section ("trousers") shaft: tethers from the cartwheel at r0 to a bridle at r1 over l0,
+# then on to the kites at r2 over l1. Lambda is relative to r2.
+#
+# Until 2026-11 the maximum was found by a search for the twist where the two-section shaft and a
+# single section r0 -> r2 have the same Lambda ("buckling"). That search was a secant search from
+# 90 degrees over all twists: the two are equal untwisted and repeat every turn, so once
+# its call was fixed (0a456b2) it found twists of 180 to 3060 degrees for l0 between about 11 and
+# 16 m and drew nonsense there, and it never found the real buckling below l0 = 8 m. It also
+# measured the bridle's load with the whole tether tension along the horizontal run, where the
+# horizontal part of the tension is what pulls on the joint. Below, the shaft is worked out at
+# each twist from 0 to 180 degrees instead.
 
-function lambda_helper(r0, r1, l, theta)
-  sin(theta) * r0 / sqrt(2 * cos(theta) * r0 * r1 + l^2 - r0^2 - r1^2 + 0im)
-end
 
-
+# Lambda of one section from radius r0 to r1, length l, twist theta, relative to r1; NaN where the
+# section is too short for the twist
 function lambda(r0, r1, l, theta)
-  tmp = lambda_helper(r0, r1, l, theta)
-  isreal(tmp) ? real(tmp) : NaN
+  h2 = 2 * cos(theta) * r0 * r1 + l^2 - r0^2 - r1^2
+  h2 > 0 ? sin(theta) * r0 / sqrt(h2) : NaN
 end
 
 
-function lambda_error(r0, r1, r2, l0, l1, theta0, theta1)
-  lambda0 = lambda_helper(r0, r1, l0, theta0) * r1 / r2
-  lambda1 = lambda_helper(r1, r2, l1, theta1)
-  (real(lambda0 - lambda1))^2 + imag(lambda0)^2 + imag(lambda1)^2
-end
+section_height(r0, r1, l, theta) = sqrt(2 * cos(theta) * r0 * r1 + l^2 - r0^2 - r1^2)
 
 
-function relax_twist(r0, r1, r2, l0, l1, theta)
-  result = find_zero(theta0 -> lambda_error(r0, r1, r2, l0, l1, theta0, theta - theta0), theta * l0 / (l0 + l1))
-end
-
-
-function find_double_section_lambda(r0, r1, r2, l0, l1, theta)
-  # like before, but check if tether force is pointing in or out by using
-  # vector math
-  #
-  # - calc vectors
-  # - calc tensions
-  # - calc sum of forces
-  # - dot product with outward vector
-  # - bigger than 0 -> ok, else NaN
-  # point are x0, x1, x2
-  try
-    theta0 = relax_twist(r0, r1, r2, l0, l1, theta)
-    theta1 = theta - theta0
-    x0 = RotZ(-theta0) * [r0; 0; 0]
-    x1 = [r1; 0; 0]
-    x2 = RotZ(theta1) * [r2; 0; 0]
-
-    # assume T_N = 1.0
-    tension0 = l0 / sqrt(2 * cos(theta0) * r0 * r1 + l0^2 - r0^2 - r1^2) 
-    tension1 = l1 / sqrt(2 * cos(theta1) * r1 * r2 + l1^2 - r1^2 - r2^2) 
-
-    force0 = normalize(x0 - x1) * tension0
-    force1 = normalize(x2 - x1) * tension1
-
-    radial_force = dot(force0 + force1, [1.0; 0.0; 0.0])
-
-    if isreal(tension0) && isreal(tension1) && radial_force >= 0
-      lambda(r1, r2, l1, theta - theta0)
-    else
-      # soft bridle acts compressively, or invalid geometry
-      NaN
+# The twist of the lower section when the shaft is twisted theta in all: both sections carry the
+# same moment, so the moment difference, which goes from <= 0 at theta0 = 0 to >= 0 at theta0 =
+# theta, is bisected at its first change of sign. NaN if the sections cannot be built.
+function split_twist(r0, r1, r2, l0, l1, theta; n = 400)
+  g = theta0 -> lambda(r0, r1, l0, theta0) * r1 / r2 - lambda(r1, r2, l1, theta - theta0)
+  xs = range(0.0, theta, length = n)
+  gs = g.(xs)
+  for i = 1:(n - 1)
+    (a, b, ga, gb) = (xs[i], xs[i + 1], gs[i], gs[i + 1])
+    (isnan(ga) || isnan(gb)) && continue
+    ga == 0 && return a
+    if ga * gb < 0
+      for _ = 1:60
+        m = (a + b) / 2
+        gm = g(m)
+        sign(gm) == sign(ga) ? (a = m; ga = gm) : (b = m)
+      end
+      return (a + b) / 2
     end
-  catch
-    NaN
   end
+  NaN
 end
 
 
-function find_possible_buckling_theta(r0, r1, r2, l0, l1)
-  try
-    (true, find_zero(th -> lambda(r0, r2, l0 + l1, th) - find_double_section_lambda(r0, r1, r2, l0, l1, th), pi/2))
-  catch e
-    # not finding a root means no buckling; a coding error must not be hidden here
-    e isa MethodError && rethrow()
-    (false, NaN)
-  end
+# The radial pull of the two tethers on the joint at r1, outwards positive, per unit of the axial
+# tension T_N: the horizontal part of a tether's tension is T_N times its horizontal run over its
+# height. The bridle can only pull the joint in, so it holds while this is >= 0.
+function joint_pull(r0, r1, r2, l0, l1, theta0, theta1)
+  (r0 * cos(theta0) - r1) / section_height(r0, r1, l0, theta0) +
+    (r2 * cos(theta1) - r1) / section_height(r1, r2, l1, theta1)
 end
 
 
-# find the point where the two section shaft buckes. This should be the same
-# point where the single segment shaft without the bridle has the same lambda
-# value
+# Lambda of the shaft at the total twist theta. While the tethers pull the joint outwards the bridle
+# holds it at r1 and the shaft has two sections. Once they would pull it in, the bridle goes slack,
+# the joint moves in and each tether runs straight from r0 to r2: the shaft has buckled into a
+# single section. NaN where neither can be built.
+function double_section_lambda(r0, r1, r2, l0, l1, theta)
+  theta0 = split_twist(r0, r1, r2, l0, l1, theta)
+  if !isnan(theta0) && joint_pull(r0, r1, r2, l0, l1, theta0, theta - theta0) >= 0
+    return lambda(r1, r2, l1, theta - theta0)
+  end
+  # buckled: the straight tether must pass the joint's height inside r1
+  s = l0 / (l0 + l1)
+  rho = sqrt((1 - s)^2 * r0^2 + s^2 * r2^2 + 2 * s * (1 - s) * r0 * r2 * cos(theta))
+  rho <= r1 ? lambda(r0, r2, l0 + l1, theta) : NaN
+end
+
+
+# the largest Lambda over twists from 0 to 180 degrees
 function max_lambda(r0, r1, r2, l0, l1; accuracy = 0.001)
-  (buckling, theta) = find_possible_buckling_theta(r0, r1, r2, l0, l1)
-  theta_max = buckling ? theta : deg2rad(180)
-  res = if buckling
-    lambda(r0, r2, l0 + l1, theta)
-  else
-    tmp = maximum(filter(x -> !isnan(x), vcat(-1, find_double_section_lambda.(r0, r1, r2, l0, l1, 0:accuracy:theta_max))))
-  end
-  res >= 0 ? res : NaN
+  values = filter(!isnan, double_section_lambda.(r0, r1, r2, l0, l1, accuracy:accuracy:pi))
+  isempty(values) ? NaN : maximum(values)
 end
 
 
