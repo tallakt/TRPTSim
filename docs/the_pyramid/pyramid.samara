@@ -1,0 +1,197 @@
+# The pyramid: moment, power and drag of a TRPT kite plant (AWEC 2021)
+#
+# Three kites fly a circle of radius r1 downwind of a ground station. Each kite has one tether down
+# to a cartwheel of radius r0 at the ground; together the tethers form a twisted shaft, a torsional
+# rotary power transfer (TRPT), that carries the kites' moment to the generator. Worked out here:
+# 1. the moment the shaft carries for its tension, as the MTR value (moment per tension per kite
+#    radius), and the most it can carry;
+# 2. the harvesting force, and so the MTR value, that gives the kites the most power;
+# 3. the roll controller that holds the shaft up;
+# 4. the drag of the tethers, and how long a shaft can be.
+
+using rotations
+using numeric
+
+# ---------------------------------------------------------------------------------------------
+# 1. The shaft
+#
+# One tether, from the cartwheel point A to the kite B. x points to the kite, z along the shaft's
+# axis; the kite end is twisted by theta from the ground end. T_N is the tension along the axis.
+r0, r1, l, T_N: symbol(positive)
+theta: symbol(theta > 0, theta < pi)
+z_A: symbol(positive)
+A: about_z(-theta) * [r0, 0, 0] - [0, 0, z_A]
+B: [r1, 0, 0]
+AB: B - A
+# The tether is l long. The height of the shaft is the positive root, the second: samara keeps the
+# negative one too, though z_A is declared positive.
+heights: solve(z_A, dot(AB, AB) = l^2)
+AB_l: subs(z_A = heights[2], AB)
+# The tension along the tether, and its moment about the axis at the kite's radius.
+T: T_N * l / dot([0, 0, 1], AB_l)
+tau: simplify(T * dot(AB_l, [0, 1, 0]) / l * r1)
+# The MTR value depends on the shape of the shaft only.
+mtr: simplify(tau / (T_N * r1))
+mtr_of: as_fun([r0, r1, l, theta], mtr)
+
+# Scaled by x in every length, with the tension scaled by x^2 as the wing area is: the moment goes
+# as x^3 and the MTR value stays.
+x: symbol(positive)
+simplify(subs([r0, r1, l, T_N] = [x * r0, x * r1, x * l, x^2 * T_N], tau) / tau)
+simplify(subs([r0, r1, l] = [x * r0, x * r1, x * l], mtr) / mtr)
+
+# At a quarter turn of twist, and the shafts of the paper's table, [l, r0, r1]:
+mtr_quarter: subs(theta = pi / 2, mtr)
+to_number(mtr_of(20, 50, 100, pi / 2))
+shafts: [[200, 10, 50], [100, 10, 50], [200, 20, 50], [200, 10, 100], [400, 10, 50], [100, 20, 50]]
+map(shafts, s -> to_number(mtr_of(s[2], s[3], s[1], pi / 2), 3))
+
+# The most moment the shaft can carry is at the twist where the MTR value peaks. solve gives four
+# families, though theta is declared in (0, pi); the one there is the fourth, with _n1 = 0, by hand.
+twists: solve(theta, diff(theta, mtr) = 0)
+theta_max: subs(_n1 = 0, twists[4])
+mtr_max: (sqrt(l^2 - (r1 - r0)^2) - sqrt(l^2 - (r1 + r0)^2)) / (2 * r1)
+# mtr_max, the difference of the shaft's heights untwisted and at half a turn over 2 * r1, was found
+# by hand; checked here for a shaft longer than r0 + r1, l = r0 + r1 + slack:
+slack: symbol(positive)
+test_equal(subs(l = r0 + r1 + slack, subs(theta = theta_max, mtr) = mtr_max))
+series(l = infinity, mtr_max, 2)
+to_number(subs([r0, r1, l] = [20, 50, 100], [theta_max * 180 / pi, mtr_max]))
+
+# The umbrella modification: two sections, r0 -> r1 over l0 and r1 -> r2 over l1. Both carry the
+# same moment, so the lower one, at radius r1, needs r2 / r1 times the MTR value of the upper one.
+# Shaft A of the paper, one section, and shaft B, two sections: [upper, lower as seen at r2].
+to_number(mtr_of(10, 30, 300, pi / 2), 3)
+to_number([mtr_of(15, 30, 450, pi / 2), mtr_of(3.75, 15, 30, pi / 2) * 15 / 30], 3)
+
+# ---------------------------------------------------------------------------------------------
+# 2. The MTR value that gives the most power
+#
+# One kite at phase psi in the loop, flying at v_k along the circle, in a wind w along the ground;
+# the shaft is raised theta_e. z points down the shaft, y up when theta_e is 0. The harvesting
+# moment shows at the kite as a force F_H against its path.
+psi: symbol(real)
+theta_e: symbol(theta_e > 0, theta_e < pi / 2)
+v_k, w, rho, C_L, C_D, S: symbol(positive)
+F_H: symbol(real)
+k_f: about_z(psi) * [0, 1, 0]
+k_r: about_z(psi) * [-1, 0, 0]
+w_v: about_x(-theta_e) * [0, 0, -w]
+v_a: v_k * k_f - w_v
+k_l: linalg::normalize(cross(k_r, v_a));
+q: simplify(rho * S * dot(v_a, v_a) / 2)
+# The aerodynamic force along the path is what F_H takes at the speed v_k; along the axis it is the
+# shaft's tension.
+F_path: q * (C_L * simplify(dot(k_l, k_f)) - C_D * simplify(dot(linalg::normalize(v_a), k_f)))
+T_axis:
+    q * (
+        C_L * simplify(dot(k_l, [0, 0, -1]))
+            - C_D * simplify(dot(linalg::normalize(v_a), [0, 0, -1]))
+    )
+
+# At the top of the loop:
+F_top: simplify(subs(psi = pi / 2, F_path))
+T_top: simplify(subs(psi = pi / 2, T_axis))
+# With the kite much faster than the wind, to first order in w. series gives it, with a big_o that
+# can't be taken off, so the two terms are taken by hand:
+series(w = 0, F_top, 2)
+F_fast: subs(w = 0, F_top) + w * subs(w = 0, diff(w, F_top))
+
+# The kite's speed for a harvesting force, the root that is the free-flying speed at F_H = 0:
+speeds: solve(v_k, F_fast = F_H)
+subs(F_H = 0, speeds)
+v_k_of_F: speeds[2]
+power: F_H * v_k_of_F
+F_opt: solve(F_H, diff(F_H, power) = 0)[1]
+v_opt: simplify(subs(F_H = F_opt, v_k_of_F))
+P_opt: simplify(subs(F_H = F_opt, power))
+# The MTR value at the optimum, with the lift taken for the tension as the paper does:
+mtr_opt: simplify(F_opt / (rho * C_L * S * v_opt^2 / 2))
+# The same, shorter: the power as a function of the speed, F_H = F_fast.
+v_star: solve(v_k, diff(v_k, v_k * F_fast) = 0)
+
+# The optimum is Loyd's crosswind kite, in the wind along the shaft, w * cos(theta_e):
+test_equal(P_opt = 2 / 27 * rho * S * C_L * (C_L / C_D)^2 * (w * cos(theta_e))^3)
+# At 30 degrees, as in the paper, and for a glide number of 20:
+subs(theta_e = pi / 6, [F_opt, v_opt, P_opt])
+to_number(subs(C_L = 20 * C_D, mtr_opt))
+# A 3 m^2 kite, C_L = 1.5, glide number 20, in 12 m/s at 30 degrees:
+P_kite:
+    subs(
+        [rho, S, C_L, C_D, w, theta_e]
+            = [1.225 * unit(kg / m^3), 3 * unit(m^2), 1.5, 1.5 / 20, 12 * unit(m / s), pi / 6],
+        P_opt
+    )
+to_number(P_kite, 3)
+
+# Without the approximation: in the speed ratio u = v_k / w and the glide number G = C_L / C_D, the
+# power over rho * S * C_D * w^3 / 2 and the MTR value with the true tension of the shaft.
+u, G: symbol(positive)
+P_hat: factor(subs([v_k, C_L] = [u * w, G * C_D], v_k * F_top / (rho * S * C_D * w^3 / 2)))
+mtr_hat: simplify(subs([v_k, C_L] = [u * w, G * C_D], F_top / T_top))
+# The best u for each glide number, by maximize, and the MTR value there, at 30 and at 60 degrees,
+# against 1 / (2 * G):
+glides: [5, 10, 15, 20, 25, 30]
+best_30: map(glides, g -> maximize(u, subs([G, theta_e] = [g, pi / 6], P_hat), 0..g)[1])
+best_60: map(glides, g -> maximize(u, subs([G, theta_e] = [g, pi / 3], P_hat), 0..g)[1])
+to_number(list(6, k -> subs([G, theta_e, u] = [glides[k], pi / 6, best_30[k]], mtr_hat)), 3)
+to_number(list(6, k -> subs([G, theta_e, u] = [glides[k], pi / 3, best_60[k]], mtr_hat)), 3)
+to_number(map(glides, g -> 1 / (2 * g)), 3)
+
+# ---------------------------------------------------------------------------------------------
+# 3. Holding the shaft up
+#
+# The kite rolls by phi towards the centre, which gives the side forces -T_N * tan(phi) * sin(psi)
+# up and -T_N * tan(phi) * cos(psi) across. The controller sets tan(phi) from the phase; its
+# averages over a loop are to be the forces F_y and F_x.
+K_1, K_2, F_x, F_y: symbol(real)
+tan_phi: K_1 * sin(psi) + K_2 * cos(psi)
+F_y_avg: int(0..2 * pi, as_fun(psi, -T_N * tan_phi * sin(psi))) / (2 * pi)
+F_x_avg: int(0..2 * pi, as_fun(psi, -T_N * tan_phi * cos(psi))) / (2 * pi)
+gains: solve([K_1, K_2], [F_y_avg = F_y, F_x_avg = F_x])[1]
+controller: factor(subs([K_1, K_2] = gains, tan_phi))
+
+# ---------------------------------------------------------------------------------------------
+# 4. Tether drag
+#
+# Untwisted, the tether runs straight from radius r0 to r1, and the shaft turns at v_k / r1. A piece
+# at radius r moves at v_k * r / r1 across itself; its drag times r over r1 is the force it costs
+# the kite. d is the tether's diameter, C_t its drag coefficient.
+C_t, d, s: symbol(positive)
+radius(s): r0 + (r1 - r0) * s / l
+D_t: int(0..l, s -> rho * C_t * d * (v_k * radius(s) / r1)^2 / 2 * radius(s) / r1)
+# The single tether's 1/8 * rho * C_t * d * l * v_k^2, times a factor of the shape:
+shape: simplify(D_t / (rho * C_t * d * l * v_k^2 / 8))
+# The paper's factor, and the one its previous line gives:
+shape_paper: (r1^3 + r0^3) / ((r1 - r0) * r1^2)
+shape_paper_line: (r1^3 - r0^3) / ((r1 - r0) * r1^2)
+to_number(subs([r0, r1] = [1, 5], [shape, shape_paper, shape_paper_line]), 4)
+to_number(subs([r0, r1] = [1, 2], [shape, shape_paper, shape_paper_line]), 4)
+# A shaft of parallel tethers, r0 = r1, moves all of its length at v_k: the factor is 4.
+limit(r1, as_fun(r0, shape))
+limit(r1, as_fun(r0, shape_paper_line))
+
+# How long can the shaft be, with a kite of no drag? The tether's lift is its strength mu times its
+# area, the drag D_t at the optimal speed (2/3) * G_e * w * cos(theta_e), and G_e = lift / D_t.
+mu, G_e, K: symbol(positive)
+lift: pi * d^2 * mu / 4
+D_tether: subs([r1, v_k] = [K * r0, 2 / 3 * G_e * w * cos(theta_e)], D_t)
+l_most: simplify(solve(l, lift / D_tether = G_e)[1])
+l_most_of: as_fun([rho, C_t, w, theta_e, d, mu, K, G_e], l_most)
+# 3 mm of a rope with 500 MPa to use, K = 5, 12 m/s at 30 degrees:
+map(
+    [5, 8, 10, 15],
+    g -> to_number(
+        l_most_of(
+            1.225 * unit(kg / m^3),
+            1,
+            12 * unit(m / s),
+            pi / 6,
+            3 * unit(mm),
+            500 * unit(MPa),
+            5,
+            g
+        ),
+        3
+    )
+)

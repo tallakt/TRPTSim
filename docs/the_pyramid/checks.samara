@@ -1,0 +1,53 @@
+# Checks of pyramid.samara against the paper (the_pyramid.pdf) and against the values of the earlier
+# version of these calculations, kept in the history of this repository. Each line should be true.
+include("pyramid.samara")
+
+# Paper (8) and (9).
+test_equal(T_N = T * sqrt(2 * cos(theta) * r0 * r1 + l^2 - r0^2 - r1^2) / l)
+test_equal(tau = T_N * sin(theta) * r0 * r1 / sqrt(2 * cos(theta) * r0 * r1 + l^2 - r0^2 - r1^2))
+# my_mtr = 0.2373563316
+to_number(mtr_of(20, 50, 100, pi / 2), 10)
+
+# the force balance of the earlier version, against the one here
+earlier_newton:
+    (
+        (
+            -(
+                rho * C_D * S * (cos(psi) * sin(theta_e) * w + v_k) * sqrt(
+                    2 * cos(psi) * sin(theta_e) * w * v_k + v_k^2 + w^2
+                )
+            ) / 2
+                - F_H
+        ) * sqrt(
+            (-cos(theta_e)^2 * w^2 + w^2) * cos(psi)^2
+                + 2 * cos(psi) * sin(theta_e) * w * v_k
+                + cos(theta_e)^2 * w^2
+                + v_k^2
+        )
+            + C_L * cos(theta_e) * S * rho * w * (
+                cos(psi) * sin(theta_e) * w * v_k + w^2 / 2 + v_k^2 / 2
+            )
+    ) / sqrt(
+        (-cos(theta_e)^2 * w^2 + w^2) * cos(psi)^2
+            + 2 * cos(psi) * sin(theta_e) * w * v_k
+            + cos(theta_e)^2 * w^2
+            + v_k^2
+    )
+test_equal(F_path - F_H = earlier_newton)
+# v__k_solution, F__H_opt, mtr__opt, power_opt, v_k_opt, at 30 degrees
+earlier_v_k:
+    (
+        C_L * sqrt(3) * S * rho * w + sqrt(3 * C_L^2 * S^2 * rho^2 * w^2 - 32 * rho * C_D * S * F_H)
+    ) / (4 * rho * C_D * S)
+test_equal(subs(theta_e = pi / 6, v_k_of_F) = earlier_v_k)
+test_equal(
+    subs(theta_e = pi / 6, [F_opt, mtr_opt, P_opt, v_opt])
+        = [
+            C_L^2 * S * rho * w^2 / (12 * C_D),
+            C_D / (2 * C_L),
+            C_L^3 * w^3 * sqrt(3) * S * rho / (36 * C_D^2),
+            C_L * sqrt(3) * w / (3 * C_D)
+        ]
+)
+# K__1_sol, K__2_sol
+test_equal(gains = [-2 * F_y / T_N, -2 * F_x / T_N])
