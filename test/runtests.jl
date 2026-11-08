@@ -215,6 +215,12 @@ end
   @test 2.0 / calc_c_d(p, 2.0, coeffs = p.c_d_fun_coeffs) ≈ 116.7 rtol = 0.001
   @test 2.0 / calc_c_d(c, 2.0, coeffs = c.c_d_fun_coeffs) ≈ 15.37 rtol = 0.001
   @test_throws ArgumentError october_kite(polar = :other)
+  # the span efficiency e and an extra parasite drag dcd0 on the constant term
+  q = october_kite(e = 0.85, dcd0 = 0.01)
+  for c_l in (0.5, 1.0, 2.0)
+    @test calc_c_d(q, c_l, coeffs = q.c_d_fun_coeffs) - calc_c_d(p, c_l, coeffs = p.c_d_fun_coeffs) ≈
+          0.01 + c_l^2 / (pi * 0.85 * 26.0^2 / 54.0)
+  end
 end
 
 
