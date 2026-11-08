@@ -9,10 +9,11 @@ export config, config_to_dict, scale, scale_to_area, calc_c_d,
        plot_tension_curves, heatmap_tension_moment_power, plot_solution,
        heuristic_flying_speed, heuristic_shaft_tension_per_kite,
        grid_optimize_1d, get_avg_power, signal_sum_of_kites,
-       get_bridle_alpha_b_and_force, max_alpha_b, october_kite, eijkelhof,
+       get_bridle_alpha_b_and_force, max_alpha_b, october_kite, m600_kite, eijkelhof,
        wi_rigid_daisy, ampyx_ap2, delft_lei_v3, induced_drag_factor, shaft_twist,
        cartwheel_factor, tether_shape_factor, shaft_geometry, tether_c_d,
-       induction_from_thrust_coefficient, aerodynamic_thrust, induced_wind
+       induction_from_thrust_coefficient, aerodynamic_thrust, induced_wind,
+       polar_table, m600_ground_gen_kite
 
 include("configuration.jl")
 include("tether.jl")
@@ -26,6 +27,7 @@ include("heuristics.jl")
 include("grid_optimize.jl")
 include("utilities.jl")
 include("kites/october.jl")
+include("kites/m600.jl")
 include("kites/eijkelhof.jl")
 include("kites/wi_rigid_daisy.jl")
 include("kites/ampyx_ap2.jl")

@@ -16,10 +16,11 @@ struct Configuration
     c_d_tether::Float64     # drag coefficient of tether
     safety_factor::Float64  # for the tether
     r0::Float64             # radius of the cartwheel at the ground; 0 puts the tethers on the axis
+    c_d_table::Matrix{Float64} # a tabulated polar, rows (C_L, C_D), added to the polynomial; 0 rows for none
 end
 
 
-Configuration() = Configuration(3, 5.0, 0.5, 0.005, 50.0, 1.2, [0, 0.1], deg2rad(30), 5.0, 9.81, 1.225, 1.1, 3.0, 0.0)
+Configuration() = Configuration(3, 5.0, 0.5, 0.005, 50.0, 1.2, [0, 0.1], deg2rad(30), 5.0, 9.81, 1.225, 1.1, 3.0, 0.0, zeros(0, 2))
 
 
 
@@ -43,8 +44,35 @@ function scale_to_area(c::Configuration, s::Number)
     scale(c, sqrt(s / c.s))
 end
 
+# The kite's drag coefficient at `c_l`: the polynomial `coeffs` (by default the kite's polar with
+# the nominal tether drag) plus the tabulated polar `c.c_d_table`, if the kite has one.
 function calc_c_d(c::Configuration, c_l::Number; coeffs = c_d_coeffs_with_tether(c))
-    sum(map(i -> coeffs[i] * c_l^(i-1), 1:length(coeffs)))
+    sum(map(i -> coeffs[i] * c_l^(i-1), 1:length(coeffs))) + table_c_d(c.c_d_table, c_l)
+end
+
+
+"""
+    polar_table(c_l, c_d)
+
+A tabulated polar for `Configuration`'s `c_d_table`: the drag coefficients `c_d` at the lift
+coefficients `c_l`, which must increase strictly. `calc_c_d` interpolates it linearly, and beyond
+its ends extends its first and last segments.
+"""
+function polar_table(c_l::AbstractVector, c_d::AbstractVector)
+    length(c_l) == length(c_d) || throw(ArgumentError("c_l and c_d differ in length"))
+    length(c_l) >= 2 || throw(ArgumentError("a polar table needs two rows or more"))
+    all(diff(c_l) .> 0) || throw(ArgumentError("the C_L of a polar table must increase strictly"))
+    hcat(Float64.(c_l), Float64.(c_d))
+end
+
+
+# Linear interpolation in a polar table (rows C_L, C_D), its end segments extended; 0 for no table.
+function table_c_d(table::AbstractMatrix, c_l::Number)
+    n = size(table, 1)
+    n == 0 && return 0.0
+    i = clamp(searchsortedlast(view(table, :, 1), c_l), 1, n - 1)
+    (x0, x1, y0, y1) = (table[i, 1], table[i + 1, 1], table[i, 2], table[i + 1, 2])
+    y0 + (y1 - y0) * (c_l - x0) / (x1 - x0)
 end
 
 function c_d_coeffs_with_tether(c::Configuration)

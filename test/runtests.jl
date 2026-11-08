@@ -302,3 +302,80 @@ end
   @test induction_from_thrust_coefficient(0.96 + 1e-9) ≈ 0.4 atol = 1e-6
   @test induction_from_thrust_coefficient(2.0) ≈ 1.0
 end
+
+
+@testset "A tabulated polar" begin
+  t = polar_table([0.0, 1.0, 2.0], [0.02, 0.05, 0.2])
+  c = config(october_kite(), c_d_fun_coeffs = [0.0], c_d_table = t)
+  # the rows, linear between them, the end segments extended
+  @test [calc_c_d(c, x, coeffs = c.c_d_fun_coeffs) for x in (0.0, 1.0, 2.0)] ≈ [0.02, 0.05, 0.2]
+  @test calc_c_d(c, 0.5, coeffs = c.c_d_fun_coeffs) ≈ 0.035
+  @test calc_c_d(c, 1.5, coeffs = c.c_d_fun_coeffs) ≈ 0.125
+  @test calc_c_d(c, 2.5, coeffs = c.c_d_fun_coeffs) ≈ 0.275
+  @test calc_c_d(c, -0.5, coeffs = c.c_d_fun_coeffs) ≈ 0.005
+  # it adds to the polynomial, and the tether's nominal drag adds to both
+  q = config(c, c_d_fun_coeffs = [0.01, 0.0, 0.02])
+  @test calc_c_d(q, 1.5, coeffs = q.c_d_fun_coeffs) ≈ 0.125 + 0.01 + 0.02 * 1.5^2
+  @test calc_c_d(q, 1.5) - calc_c_d(q, 1.5, coeffs = q.c_d_fun_coeffs) ≈ q.c_d_tether * q.d * q.l / (4 * q.s)
+  # no table: the polynomial alone
+  @test calc_c_d(october_kite(), 1.5, coeffs = october_kite().c_d_fun_coeffs) ≈
+        sum(october_kite().c_d_fun_coeffs .* 1.5 .^ (0:4))
+  @test_throws ArgumentError polar_table([0.0, 2.0, 1.0], [0.1, 0.2, 0.3])
+  @test_throws ArgumentError polar_table([0.0, 1.0], [0.1])
+  # the simulation flies a tabulated polar as it flies the same polynomial
+  m = m600_kite()
+  cls = collect(0.0:0.05:3.0)
+  tab = config(m, c_d_fun_coeffs = [0.0], c_d_table = polar_table(cls, [calc_c_d(m, x, coeffs = m.c_d_fun_coeffs) for x in cls]))
+  lambda = m.r0 / sqrt(m.l^2 - m.r0^2 - m.radius^2)
+  (df1, _) = solve_sector_df(m, 12.0, 0.0, lambda, 0.0, shaft_tension = 110e3)
+  (df2, _) = solve_sector_df(tab, 12.0, 0.0, lambda, 0.0, shaft_tension = 110e3)
+  @test mean(df2.power) ≈ mean(df1.power) rtol = 1e-3
+end
+
+
+@testset "The M600 as built" begin
+  c = m600_kite()
+  @test (c.s, c.m, c.n, c.design_c_l) == (32.9, 1730.8, 3, 2.56)
+  # the plant sized for the M600: a ring of 145 m, a shaft of 340 m, a cartwheel of 9 m, and a
+  # tether for its 250 kN at the safety factor 3
+  @test (c.radius, c.l, c.r0) == (145.0, 340.0, 9.0)
+  @test tether_strength(c.d) / c.safety_factor ≈ 250e3
+  @test c.d ≈ 0.0239 atol = 1e-4
+  aspect_ratio = 25.66^2 / 32.9
+  @test aspect_ratio ≈ 20.01 atol = 0.01
+  # C_D0 + C_L^2 / (pi e AR), with C_D 0.2443 at C_L 2.56 (Makani's as-built kite drag)
+  @test c.c_d_fun_coeffs[3] ≈ 1 / (pi * 0.85 * aspect_ratio)
+  @test calc_c_d(c, 2.56, coeffs = c.c_d_fun_coeffs) ≈ 0.2443
+  @test c.c_d_fun_coeffs[1] ≈ 0.1217 atol = 1e-4
+  @test 2.56 / calc_c_d(c, 2.56, coeffs = c.c_d_fun_coeffs) ≈ 10.48 atol = 0.01
+  # another span efficiency keeps the anchor and moves drag between the two terms
+  q = m600_kite(e = 0.95)
+  @test calc_c_d(q, 2.56, coeffs = q.c_d_fun_coeffs) ≈ 0.2443
+  @test q.c_d_fun_coeffs[1] > c.c_d_fun_coeffs[1]
+  @test_throws ArgumentError m600_kite(c_d = 0.05)
+  # the cartwheel of 9 m carries Lambda = 0.0293 at a quarter turn on the 340 m shaft, and the
+  # lowest wing tip clears the cartwheel by 17 m at 30 degrees
+  lambda = c.r0 / sqrt(c.l^2 - c.r0^2 - c.radius^2)
+  @test lambda ≈ 0.0293 atol = 1e-4
+  @test sqrt(c.l^2 - c.r0^2 - c.radius^2) * sin(c.elev) - (c.radius + 25.66 / 2) * cos(c.elev) ≈ 17.0 atol = 0.1
+  @test shaft_twist(c.r0, c.radius, c.l, lambda) ≈ pi / 2 atol = 1e-6
+end
+
+
+@testset "The M600 rebuilt for ground generation" begin
+  c = m600_kite()
+  g = m600_ground_gen_kite()
+  # 35 % of the mass and 0.0101 of the drag coefficient removed, the rest as built
+  @test g.m ≈ 0.65 * 1730.8
+  for c_l in (1.0, 2.0, 2.56)
+    @test calc_c_d(c, c_l, coeffs = c.c_d_fun_coeffs) - calc_c_d(g, c_l, coeffs = g.c_d_fun_coeffs) ≈ 0.0101
+  end
+  @test 2.56 / calc_c_d(g, 2.56, coeffs = g.c_d_fun_coeffs) ≈ 10.93 atol = 0.01
+  @test (g.s, g.l, g.r0, g.radius, g.d, g.design_c_l) == (c.s, c.l, c.r0, c.radius, c.d, c.design_c_l)
+  @test m600_ground_gen_kite(mass_removed = 0.5).m ≈ 865.4
+  # the lighter kite needs less of the lift to hold up the shaft, so it makes more power
+  lambda = c.r0 / sqrt(c.l^2 - c.r0^2 - c.radius^2)
+  p_c = get_avg_power(solve_sector_df(c, 12.0, 0.0, lambda, 0.0, shaft_tension = 110e3))
+  p_light = get_avg_power(solve_sector_df(config(c, m = g.m), 12.0, 0.0, lambda, 0.0, shaft_tension = 110e3))
+  @test p_light > p_c
+end
